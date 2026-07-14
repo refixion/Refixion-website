@@ -1,0 +1,158 @@
+{
+  "theme": "light",
+  "typography": {
+    "primary_font": "Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
+    "headings_font": "-apple-system, BlinkMacSystemFont, 'SF Pro Display', Inter, sans-serif",
+    "weights": {
+      "light": 300,
+      "regular": 400,
+      "medium": 500,
+      "semibold": 600,
+      "bold": 700
+    },
+    "hierarchy": {
+      "h1": "text-5xl md:text-6xl tracking-tight font-semibold text-[#111111]",
+      "h2": "text-4xl md:text-5xl tracking-tight font-semibold text-[#111111]",
+      "h3": "text-2xl md:text-3xl tracking-tight font-medium text-[#111111]",
+      "h4": "text-xl md:text-2xl font-medium text-[#111111]",
+      "body_large": "text-lg md:text-xl text-[#666666] leading-relaxed",
+      "body_regular": "text-base text-[#666666] leading-relaxed",
+      "small_label": "text-xs md:text-sm tracking-wider uppercase font-medium text-[#666666]"
+    }
+  },
+  "colors": {
+    "background": {
+      "primary": "#FFFFFF",
+      "secondary": "#FAFAFA"
+    },
+    "surface": {
+      "card": "#FFFFFF"
+    },
+    "text": {
+      "primary": "#111111",
+      "secondary": "#666666",
+      "inverse": "#FFFFFF"
+    },
+    "border": {
+      "default": "#EAEAEA"
+    },
+    "status": {
+      "danger": "#DC2626",
+      "success": "#16A34A",
+      "warning": "#F59E0B"
+    },
+    "action": {
+      "button_bg": "#111111",
+      "button_text": "#FFFFFF",
+      "button_hover_bg": "#333333"
+    },
+    "shadcn_css_overrides": {
+      "background": "0 0% 100%",
+      "foreground": "0 0% 6.7%",
+      "card": "0 0% 100%",
+      "card-foreground": "0 0% 6.7%",
+      "popover": "0 0% 100%",
+      "popover-foreground": "0 0% 6.7%",
+      "primary": "0 0% 6.7%",
+      "primary-foreground": "0 0% 100%",
+      "secondary": "0 0% 98%",
+      "secondary-foreground": "0 0% 6.7%",
+      "muted": "0 0% 98%",
+      "muted-foreground": "0 0% 40%",
+      "accent": "0 0% 98%",
+      "accent-foreground": "0 0% 6.7%",
+      "destructive": "0 72.2% 50.6%",
+      "destructive-foreground": "0 0% 100%",
+      "border": "0 0% 91.8%",
+      "input": "0 0% 91.8%",
+      "ring": "0 0% 6.7%",
+      "radius": "1rem"
+    }
+  },
+  "layouts": {
+    "max_width": "max-w-[1400px] mx-auto px-6 md:px-12",
+    "spacing": {
+      "section_y": "py-24 md:py-32",
+      "gap_elements": "gap-8 md:gap-12"
+    },
+    "cards": {
+      "base": "bg-white rounded-2xl border border-[#EAEAEA] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]",
+      "hover": "hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow duration-300"
+    }
+  },
+  "motion": {
+    "library": "framer-motion",
+    "philosophy": "Smooth, subtle, purposeful. No animation over 500ms.",
+    "variants": {
+      "fadeUp": {
+        "initial": { "opacity": 0, "y": 20 },
+        "animate": { "opacity": 1, "y": 0 },
+        "transition": { "duration": 0.4, "ease": [0.25, 0.1, 0.25, 1] }
+      },
+      "fadeIn": {
+        "initial": { "opacity": 0 },
+        "animate": { "opacity": 1 },
+        "transition": { "duration": 0.5, "ease": "easeOut" }
+      },
+      "buttonHover": {
+        "hover": { "scale": 1.02 },
+        "tap": { "scale": 0.98 }
+      }
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#111111] text-white rounded-full px-8 py-3.5 font-medium hover:bg-[#333333] transition-colors shadow-sm hover:shadow-md",
+      "secondary": "bg-white text-[#111111] border border-[#EAEAEA] rounded-full px-8 py-3.5 font-medium hover:bg-[#FAFAFA] transition-colors"
+    },
+    "navbar": {
+      "style": "sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-[#EAEAEA]/50 transition-all duration-300",
+      "scrolled_style": "py-2"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "Outline only, stroke-width 1.5. No filled icons."
+    },
+    "brand_logos": {
+      "library": "react-icons/si",
+      "instructions": "Use SiApple, SiSamsung, SiGoogle, SiOneplus for the supported brands section to keep the design perfectly clean and vector-based."
+    }
+  },
+  "media": {
+    "images": [
+      {
+        "category": "hero",
+        "url": "https://images.unsplash.com/photo-1758186334264-d1ab8a079aa2",
+        "description": "Close-up of a white smartphone camera system, showcasing precision and premium technology."
+      },
+      {
+        "category": "workspace_abstract",
+        "url": "https://images.pexels.com/photos/10232658/pexels-photo-10232658.jpeg",
+        "description": "Clean flat lay of premium packaging and technology, evoking a high-end service feel."
+      },
+      {
+        "category": "repair_concept",
+        "url": "https://images.unsplash.com/photo-1611433965582-de98df4da7ce",
+        "description": "Macro shot of a disassembled smartphone, showing technical expertise and precision."
+      }
+    ],
+    "philosophy": "Use clean, premium smartphone renders or high-quality macro shots. Avoid cheap stock imagery of people holding phones. The imagery should focus on the product, precision, and the clean workspace."
+  },
+  "accessibility": {
+    "contrast": "Ensure all text meets WCAG AA standards. The #666666 secondary text on #FFFFFF passes easily.",
+    "focus": "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111111] focus-visible:ring-offset-2",
+    "testing": "All interactive elements MUST include a data-testid attribute in kebab-case."
+  },
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You MUST use Tailwind CSS for all styling.",
+    "DO NOT add .App { text-align: center; } in the CSS file.",
+    "Use standard HTML elements like <section> and <div> for layouts, preferring Shadcn only for complex interactive components.",
+    "Do not use transparent backgrounds for the header/nav; always use white or a blurred white backdrop.",
+    "Enforce the 'White Background Dominates' rule. Avoid large blocks of color. Use #FAFAFA just to break up sections.",
+    "Integrate Framer Motion for section reveals (fade upwards) on scroll.",
+    "Keep typography tight for headings (`tracking-tight`) and generous for body copy.",
+    "For the multi-step booking wizard, build a smooth client-side flow with state management before hitting any backend endpoint.",
+    "Use sonner for any toast notifications.",
+    "Admin dashboard should remain fully functional but still adopt the clean black/white/gray aesthetic of the main site."
+  ]
+}
