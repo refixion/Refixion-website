@@ -9,9 +9,7 @@ const NAV = [
   { to: "/", key: "nav.home" },
   { to: "/repairs", key: "nav.repairs" },
   { to: "/pricing", key: "nav.pricing" },
-  { to: "/business", key: "nav.business" },
   { to: "/garantie", key: "nav.warranty" },
-  { to: "/reviews", key: "nav.reviews" },
   { to: "/faq", key: "nav.faq" },
   { to: "/contact", key: "nav.contact" },
 ];

@@ -385,30 +385,28 @@ def build_part_options():
     return options
 
 
-# Repair methods (same as before).
+# Repair methods — only Workshop + Mail-in for now (Pickup + On-site removed per business decision).
 REPAIR_METHODS = [
     {"id": "method-workshop", "slug": "workshop", "title": "Bezoek onze werkplaats",   "description": "Breng uw toestel naar onze reparatielocatie. Reparaties worden meestal terwijl u wacht uitgevoerd.", "icon": "store", "estimated_turnaround": "Meestal binnen 1 uur", "additional_price": 0, "info": "Geen extra kosten. Loop binnen of maak een afspraak.", "enabled": True, "order": 1},
     {"id": "method-mailin",   "slug": "mail-in",  "title": "Opsturen (Mail-in)",        "description": "Verstuur uw toestel veilig naar ons via post of koerier. Wij verzorgen de retourzending.",        "icon": "package", "estimated_turnaround": "2 – 4 werkdagen",       "additional_price": 0, "info": "Gratis retourzending binnen Nederland.",         "enabled": True, "order": 2},
-    {"id": "method-pickup",   "slug": "pickup",   "title": "Ophaalservice",             "description": "Wij komen uw toestel bij u thuis of op kantoor ophalen en brengen het na reparatie terug.",         "icon": "truck",   "estimated_turnaround": "1 – 2 werkdagen",       "additional_price": 19,"info": "Beschikbaar in de regio Randstad.",             "enabled": True, "order": 3},
-    {"id": "method-onsite",   "slug": "onsite",   "title": "On-site voor bedrijven",    "description": "Voor zakelijke klanten: onze technicus komt naar uw kantoor voor snelle reparaties ter plaatse.",  "icon": "briefcase","estimated_turnaround": "Op afspraak",           "additional_price": 49,"info": "Vanaf 5 toestellen op locatie.",                "enabled": True, "order": 4},
 ]
 
 
 WORKSHOP = {
     "id": "workshop-default",
     "business_name": "Refixion",
-    "workshop_name": "Refixion Werkplaats Amsterdam",
-    "address": "Herengracht 182",
-    "postal_code": "1016 BR",
-    "city": "Amsterdam",
+    "workshop_name": "Refixion",
+    "address": "Dorpsstraat 51",
+    "postal_code": "1721 BB",
+    "city": "Broek op Langedijk",
     "country": "Nederland",
-    "latitude": 52.3702,
-    "longitude": 4.8952,
-    "google_maps_link": "https://maps.google.com/?q=Herengracht+182+Amsterdam",
-    "parking_instructions": "Betaald parkeren in de omgeving. Gratis parkeren mogelijk in P+R Zeeburg (10 min metro).",
-    "doorbell_instructions": "Aanbellen bij 'Refixion' — begane grond.",
-    "email": "hello@refixion.nl",
-    "phone": "+31 20 123 4567",
+    "latitude": 52.6742,
+    "longitude": 4.8003,
+    "google_maps_link": "https://maps.google.com/?q=Dorpsstraat+51+Broek+op+Langedijk",
+    "parking_instructions": "Gratis parkeren voor de deur.",
+    "doorbell_instructions": "Loop binnen tijdens openingstijden.",
+    "email": "refixionstore@gmail.com",
+    "phone": "+31 6 44859536",
     "opening_hours": {
         "monday": {"open": "09:00", "close": "18:00", "closed": False},
         "tuesday": {"open": "09:00", "close": "18:00", "closed": False},
@@ -421,27 +419,23 @@ WORKSHOP = {
     "closed_days": [],
     "max_bookings_per_day": 20,
     "appointment_interval_minutes": 30,
-    "socials": {"instagram": "https://instagram.com/refixion", "facebook": "https://facebook.com/refixion"},
+    "socials": {
+        "instagram": "https://www.instagram.com/refixionnl",
+        "tiktok": "https://www.tiktok.com/@refixionstore",
+    },
 }
 
 
-REVIEWS = [
-    {"id": "rev-1", "name": "Sanne de Vries",   "rating": 5, "date": "2025-11-14", "text": "Binnen 40 minuten was mijn iPhone 15 Pro-scherm vervangen. Perfect resultaat, keurige service en eerlijke prijs. Absolute aanrader.", "device": "iPhone 15 Pro"},
-    {"id": "rev-2", "name": "Mark Jansen",      "rating": 5, "date": "2025-11-02", "text": "Zeer professionele werkwijze. De technicus legde alles duidelijk uit voordat hij begon. Prijs precies zoals gecommuniceerd, geen verrassingen achteraf.", "device": "Samsung Galaxy S24"},
-    {"id": "rev-3", "name": "Emma van den Berg","rating": 5, "date": "2025-10-28", "text": "Batterij van mijn iPhone was op. Refixion kwam mijn toestel ophalen en dezelfde dag weer terugbrengen. Ongelooflijk gemak.", "device": "iPhone 13"},
-    {"id": "rev-4", "name": "Lars Bakker",      "rating": 5, "date": "2025-10-19", "text": "De strakste repair-ervaring die ik ooit heb gehad. Voelt echt als een premium tech merk, geen typische telefoonwinkel.", "device": "Samsung Galaxy S23"},
-    {"id": "rev-5", "name": "Julia Smit",       "rating": 5, "date": "2025-10-08", "text": "Waterschade aan mijn iPhone. Andere winkels wilden hem afschrijven. Refixion heeft hem gered. Enorm dankbaar.", "device": "iPhone 14"},
-    {"id": "rev-6", "name": "Thijs Peters",     "rating": 4, "date": "2025-09-30", "text": "Snelle service en nette communicatie. Enige minpunt: de wachtruimte was even druk. Verder top.", "device": "iPhone 12"},
-]
+REVIEWS = []
 
 
 FAQS = [
-    {"id": "faq-1", "question": "Hoe lang duurt een reparatie?",              "answer": "De meeste reparaties zijn binnen 30 tot 60 minuten klaar terwijl u wacht. Complexere reparaties zoals waterschade kunnen 1 – 2 werkdagen duren.", "order": 1},
-    {"id": "faq-2", "question": "Wat voor garantie krijg ik?",                 "answer": "Op de meeste reparaties krijgt u 12 maanden garantie. Op Face ID reparaties 3 maanden. Op waterschade behandeling 30 dagen. Op tweedehands 'Werkend scherm' 30 dagen. Zie onze Garantie pagina voor volledige details.", "order": 2},
+    {"id": "faq-1", "question": "Hoe lang duurt een reparatie?",              "answer": "De meeste reparaties zijn binnen 30 tot 60 minuten klaar terwijl u wacht. Bij opsturen rekent u op 2 – 4 werkdagen. Complexere reparaties zoals waterschade kunnen 1 – 2 werkdagen duren.", "order": 1},
+    {"id": "faq-2", "question": "Wat voor garantie krijg ik?",                "answer": "Op de meeste reparaties krijgt u 12 maanden garantie. Op Face ID reparaties 3 maanden. Op waterschade behandeling 30 dagen. Op tweedehands 'Werkend scherm' 30 dagen. Zie onze Garantie-pagina voor de volledige details per reparatie.", "order": 2},
     {"id": "faq-3", "question": "Wat zijn de verschillen tussen schermkwaliteiten?", "answer": "Wij bieden drie kwaliteiten: Origineel (OEM) is fabrieksniveau met 12 maanden garantie. High Quality Display is premium aftermarket met 12 maanden garantie. Werkend scherm is een getest tweedehands origineel met 30 dagen garantie en lichte cosmetische slijtage.", "order": 3},
     {"id": "faq-4", "question": "Gebruiken jullie originele onderdelen?",      "answer": "Wij bieden zowel originele (OEM) als premium aftermarket onderdelen. U kiest zelf welk kwaliteitsniveau bij u past.", "order": 4},
     {"id": "faq-5", "question": "Wat als mijn toestel niet meer aan gaat?",    "answer": "Geen probleem. Wij voeren eerst een diagnose uit en bespreken vervolgens transparant de reparatiekosten voordat wij beginnen.", "order": 5},
-    {"id": "faq-6", "question": "Kan ik betalen na de reparatie?",             "answer": "Ja. Betaling vindt plaats bij oplevering — pin, contant, iDEAL of factuur voor zakelijke klanten.", "order": 6},
-    {"id": "faq-7", "question": "Halen jullie mijn toestel op?",               "answer": "Ja, wij bieden een ophaalservice in de Randstad. Wij komen uw toestel ophalen en brengen het na reparatie weer terug.", "order": 7},
+    {"id": "faq-6", "question": "Kan ik betalen na de reparatie?",             "answer": "Ja. Betaling vindt plaats bij oplevering — pin, contant of iDEAL.", "order": 6},
+    {"id": "faq-7", "question": "Kan ik mijn toestel opsturen?",               "answer": "Ja. Kies bij de boeking voor 'Opsturen (Mail-in)'. Verstuur uw toestel veilig naar ons — wij verzorgen de retourzending gratis binnen Nederland.", "order": 7},
     {"id": "faq-8", "question": "Wat gebeurt er met mijn data?",               "answer": "Uw data blijft veilig. Wij hebben geen toegang tot uw persoonlijke gegevens. Wij adviseren echter altijd om een back-up te maken vóór de reparatie.", "order": 8},
 ]

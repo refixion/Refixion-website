@@ -27,7 +27,11 @@ export default function ContactPage() {
                 <div className="flex items-start gap-3"><MapPin className="h-4 w-4 mt-0.5 text-[#666666]" strokeWidth={1.5} /><div><div className="text-[12px] uppercase tracking-wider text-[#666666] mb-1">Adres</div>{ws?.address}, {ws?.postal_code} {ws?.city}</div></div>
                 <div className="flex items-start gap-3"><Mail className="h-4 w-4 mt-0.5 text-[#666666]" strokeWidth={1.5} /><div><div className="text-[12px] uppercase tracking-wider text-[#666666] mb-1">E-mail</div>{ws?.email}</div></div>
                 <div className="flex items-start gap-3"><Phone className="h-4 w-4 mt-0.5 text-[#666666]" strokeWidth={1.5} /><div><div className="text-[12px] uppercase tracking-wider text-[#666666] mb-1">Telefoon</div>{ws?.phone}</div></div>
-                <div className="flex items-start gap-3"><Clock className="h-4 w-4 mt-0.5 text-[#666666]" strokeWidth={1.5} /><div><div className="text-[12px] uppercase tracking-wider text-[#666666] mb-1">Openingstijden</div>Ma – Vr · 09:00 – 18:00<br />Za · 10:00 – 17:00<br />Zo · Gesloten</div></div>
+                <div className="flex items-start gap-3"><Clock className="h-4 w-4 mt-0.5 text-[#666666]" strokeWidth={1.5} /><div><div className="text-[12px] uppercase tracking-wider text-[#666666] mb-1">Openingstijden</div>{ws?.opening_hours && ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"].map((d) => {
+                  const h = ws.opening_hours[d]; if (!h) return null;
+                  const labels = {monday:"Ma", tuesday:"Di", wednesday:"Wo", thursday:"Do", friday:"Vr", saturday:"Za", sunday:"Zo"};
+                  return <div key={d}>{labels[d]} · {h.closed ? "Gesloten" : `${h.open} – ${h.close}`}</div>;
+                })}</div></div>
               </div>
             </div>
           </FadeUp>

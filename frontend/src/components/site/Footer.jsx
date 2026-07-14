@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Instagram, Facebook, Mail, Phone, MapPin } from "lucide-react";
+import { Instagram, Mail, Phone, MapPin } from "lucide-react";
+import { FaTiktok } from "react-icons/fa6";
 import { t } from "../../i18n";
 import { useSiteContent } from "../../lib/useSiteContent";
 import { api } from "../../lib/api";
@@ -30,9 +31,14 @@ export default function Footer() {
                 <Instagram className="h-4 w-4 text-[#111111]" strokeWidth={1.5} />
               </a>
             )}
+            {footer.tiktok_url && (
+              <a href={footer.tiktok_url} target="_blank" rel="noreferrer" className="p-2 rounded-full border border-[#EAEAEA] hover:bg-white transition-colors" aria-label="TikTok">
+                <FaTiktok className="h-4 w-4 text-[#111111]" />
+              </a>
+            )}
             {footer.facebook_url && (
               <a href={footer.facebook_url} target="_blank" rel="noreferrer" className="p-2 rounded-full border border-[#EAEAEA] hover:bg-white transition-colors" aria-label="Facebook">
-                <Facebook className="h-4 w-4 text-[#111111]" strokeWidth={1.5} />
+                <FaTiktok className="h-4 w-4 text-[#111111]" />
               </a>
             )}
           </div>

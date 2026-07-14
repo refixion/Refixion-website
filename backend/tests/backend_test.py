@@ -74,7 +74,7 @@ class TestPublic:
         r = s.get(f"{API}/repair-methods")
         assert r.status_code == 200
         methods = r.json()
-        assert len(methods) == 4
+        assert len(methods) == 2
 
     def test_workshop(self, s):
         r = s.get(f"{API}/workshop")
@@ -87,7 +87,7 @@ class TestPublic:
         assert r.status_code == 200
         data = r.json()
         assert "reviews" in data and "average" in data and "count" in data
-        assert data["count"] >= 1
+        assert data["count"] == 0
 
     def test_faqs(self, s):
         r = s.get(f"{API}/faqs")

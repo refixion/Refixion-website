@@ -6,10 +6,7 @@ import SiteLayout from "@/components/site/SiteLayout";
 import HomePage from "@/pages/HomePage";
 import RepairsPage from "@/pages/RepairsPage";
 import PricingPage from "@/pages/PricingPage";
-import AboutPage from "@/pages/AboutPage";
-import BusinessPage from "@/pages/BusinessPage";
 import FAQPage from "@/pages/FAQPage";
-import ReviewsPage from "@/pages/ReviewsPage";
 import ContactPage from "@/pages/ContactPage";
 import LegalPage from "@/pages/LegalPage";
 import NotFoundPage from "@/pages/NotFoundPage";
@@ -45,10 +42,7 @@ function AnimatedRoutes() {
             <Route path="/" element={<HomePage />} />
             <Route path="/repairs" element={<RepairsPage />} />
             <Route path="/pricing" element={<PricingPage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/business" element={<BusinessPage />} />
             <Route path="/faq" element={<FAQPage />} />
-            <Route path="/reviews" element={<ReviewsPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/garantie" element={<WarrantyPage />} />
             <Route path="/legal/privacy" element={<LegalPage kind="privacy" />} />

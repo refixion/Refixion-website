@@ -4,7 +4,7 @@ SITE_CONTENT_DEFAULT = {
     "id": "site-content-default",
     "hero": {
         "badge_enabled": True,
-        "badge_text": "Vandaag open · Amsterdam",
+        "badge_text": "Broek op Langedijk",
         "headline_line1": "Professionele smartphone­reparaties.",
         "headline_line2": "Zonder gedoe.",
         "subtitle": "Snelle reparaties. Premium onderdelen. Transparante prijzen. Vertrouwde service, meestal binnen 1 uur klaar.",
@@ -18,17 +18,17 @@ SITE_CONTENT_DEFAULT = {
             {"icon": "zap", "text": "Klaar binnen 1 uur"},
             {"icon": "sparkles", "text": "Premium onderdelen"},
         ],
-        "rating_line_enabled": True,
+        "rating_line_enabled": False,
         "rating_line_suffix": "Levenslange garantie op scherm",
     },
     "trust": {
         "eyebrow": "Waarom Refixion",
         "heading": "Vertrouwen dat je kunt zien.",
         "cards": [
-            {"label": "Gemiddelde rating", "value_type": "reviews_avg", "value": "", "suffix": " ★"},
-            {"label": "Tevreden klanten", "value_type": "number", "value": "2500", "suffix": "+"},
-            {"label": "Garantie op scherm", "value_type": "text", "value": "Levenslang", "suffix": ""},
-            {"label": "Gemiddelde tijd", "value_type": "number", "value": "45", "suffix": " min"},
+            {"label": "Reparatietijd", "value_type": "text", "value": "± 45 min", "suffix": ""},
+            {"label": "Garantie", "value_type": "text", "value": "Tot 12 maanden", "suffix": ""},
+            {"label": "Onderdelen", "value_type": "text", "value": "Premium OEM / OLED", "suffix": ""},
+            {"label": "Transparant", "value_type": "text", "value": "Vaste prijs", "suffix": ""},
         ],
     },
     "how_it_works": {
@@ -52,10 +52,10 @@ SITE_CONTENT_DEFAULT = {
         "items": [
             {"icon": "sparkles", "title": "Premium onderdelen", "description": "OEM en originele kwaliteit — nooit generieke troep."},
             {"icon": "wrench", "title": "Professioneel gereedschap", "description": "Gekalibreerd apparaat voor herhaalbare precisie."},
-            {"icon": "shield-check", "title": "Garantie", "description": "Levenslange garantie op scherm. 12 maanden op de rest."},
+            {"icon": "shield-check", "title": "Garantie", "description": "Duidelijke garantie op elke reparatie. Tot 12 maanden op de meeste onderdelen."},
             {"icon": "package", "title": "Transparante prijzen", "description": "De prijs die je online ziet is de prijs die je betaalt."},
             {"icon": "clock", "title": "Snelle service", "description": "De meeste reparaties zijn klaar terwijl u wacht."},
-            {"icon": "cpu", "title": "Ervaren technici", "description": "Jarenlange ervaring in premium reparaties."},
+            {"icon": "map-pin", "title": "Broek op Langedijk", "description": "Loop binnen op Dorpsstraat 51 of stuur uw toestel op."},
         ],
     },
     "reviews_section": {
@@ -75,22 +75,20 @@ SITE_CONTENT_DEFAULT = {
         "button_link": "/booking",
     },
     "footer": {
-        "tagline": "Premium smartphone reparaties met volledige transparantie, moderne technologie en uitzonderlijke service.",
-        "instagram_url": "https://instagram.com/refixion",
-        "facebook_url": "https://facebook.com/refixion",
+        "tagline": "Premium smartphone reparaties met volledige transparantie en moderne technologie.",
+        "instagram_url": "https://www.instagram.com/refixionnl",
+        "tiktok_url": "https://www.tiktok.com/@refixionstore",
+        "facebook_url": "",
     },
 }
 
 
 SEO_DEFAULTS = [
-    {"path": "/", "title": "Refixion — Premium smartphone reparaties", "description": "Snelle reparaties. Premium onderdelen. Transparante prijzen. Meestal binnen 1 uur klaar.", "og_title": "Refixion — Premium smartphone reparaties", "og_description": "Snelle reparaties. Premium onderdelen. Transparante prijzen.", "og_image": ""},
-    {"path": "/repairs", "title": "Reparaties — Refixion", "description": "Kies je merk en model voor een premium reparatie.", "og_title": "Reparaties — Refixion", "og_description": "Apple, Samsung, Google en OnePlus reparaties.", "og_image": ""},
+    {"path": "/", "title": "Refixion — Premium smartphone reparaties", "description": "Snelle reparaties. Premium onderdelen. Transparante prijzen. Broek op Langedijk.", "og_title": "Refixion — Premium smartphone reparaties", "og_description": "Snelle reparaties. Premium onderdelen. Transparante prijzen.", "og_image": ""},
+    {"path": "/repairs", "title": "Reparaties — Refixion", "description": "Kies je merk en model voor een premium reparatie.", "og_title": "Reparaties — Refixion", "og_description": "Apple en Samsung reparaties.", "og_image": ""},
     {"path": "/pricing", "title": "Prijzen — Refixion", "description": "Transparante prijzen zonder verrassingen.", "og_title": "Prijzen — Refixion", "og_description": "De prijs die je ziet is de prijs die je betaalt.", "og_image": ""},
-    {"path": "/about", "title": "Over ons — Refixion", "description": "Een premium tech-merk dat toevallig ook repareert.", "og_title": "Over Refixion", "og_description": "", "og_image": ""},
-    {"path": "/business", "title": "Zakelijk — Refixion", "description": "Reparaties voor je hele team.", "og_title": "Zakelijk — Refixion", "og_description": "", "og_image": ""},
     {"path": "/faq", "title": "FAQ — Refixion", "description": "Antwoorden op veelgestelde vragen.", "og_title": "FAQ — Refixion", "og_description": "", "og_image": ""},
-    {"path": "/reviews", "title": "Reviews — Refixion", "description": "Wat onze klanten zeggen.", "og_title": "Reviews — Refixion", "og_description": "", "og_image": ""},
-    {"path": "/contact", "title": "Contact — Refixion", "description": "Neem contact op met Refixion.", "og_title": "Contact — Refixion", "og_description": "", "og_image": ""},
+    {"path": "/contact", "title": "Contact — Refixion", "description": "Neem contact op met Refixion. Dorpsstraat 51, Broek op Langedijk.", "og_title": "Contact — Refixion", "og_description": "", "og_image": ""},
     {"path": "/garantie", "title": "Garantie — Refixion", "description": "Duidelijke garantie op iedere reparatie. Bekijk wat gedekt is per reparatie.", "og_title": "Garantie — Refixion", "og_description": "", "og_image": ""},
     {"path": "/booking", "title": "Boek een reparatie — Refixion", "description": "Boek in enkele stappen jouw premium smartphone reparatie.", "og_title": "Boek een reparatie", "og_description": "", "og_image": ""},
 ]

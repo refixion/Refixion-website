@@ -271,20 +271,35 @@ async def seed_all():
         {"$setOnInsert": {"key": "general_warranty_text", "value": GENERAL_WARRANTY_TEXT}},
         upsert=True,
     )
-    # repair methods
+    # repair methods — remove deprecated methods (pickup, on-site), upsert the current set
+    await db.repair_methods.delete_many({"id": {"$in": ["method-pickup", "method-onsite"]}})
+    seed_method_ids = [m["id"] for m in REPAIR_METHODS]
+    await db.repair_methods.delete_many({"id": {"$nin": seed_method_ids}})
     for m in REPAIR_METHODS:
         await db.repair_methods.update_one({"id": m["id"]}, {"$setOnInsert": m}, upsert=True)
-    # workshop
-    await db.workshop.update_one({"id": WORKSHOP["id"]}, {"$setOnInsert": WORKSHOP}, upsert=True)
-    # reviews
+    # workshop — force update to reflect current business details
+    await db.workshop.update_one({"id": WORKSHOP["id"]}, {"$set": WORKSHOP}, upsert=True)
+    # reviews — user opted-out of seeded reviews
+    await db.reviews.delete_many({})
     for rv in REVIEWS:
         await db.reviews.update_one({"id": rv["id"]}, {"$setOnInsert": rv}, upsert=True)
-    # faqs
+    # faqs — force refresh (dedupe + updated copy)
+    await db.faqs.delete_many({})
     for f in FAQS:
-        await db.faqs.update_one({"id": f["id"]}, {"$setOnInsert": f}, upsert=True)
+        await db.faqs.insert_one(dict(f))
     # site content
     await db.site_content.update_one({"id": SITE_CONTENT_DEFAULT["id"]}, {"$setOnInsert": SITE_CONTENT_DEFAULT}, upsert=True)
-    # seo defaults
+    # Force-update sections that changed per business request (rating line off, trust cards,
+    # why items, footer socials, hero badge).
+    await db.site_content.update_one({}, {"$set": {
+        "hero.badge_text": SITE_CONTENT_DEFAULT["hero"]["badge_text"],
+        "hero.rating_line_enabled": False,
+        "trust.cards": SITE_CONTENT_DEFAULT["trust"]["cards"],
+        "why.items": SITE_CONTENT_DEFAULT["why"]["items"],
+        "footer": SITE_CONTENT_DEFAULT["footer"],
+    }})
+    # seo defaults — remove deprecated paths, upsert current set
+    await db.seo.delete_many({"path": {"$in": ["/about", "/business", "/reviews"]}})
     for s in SEO_DEFAULTS:
         await db.seo.update_one({"path": s["path"]}, {"$setOnInsert": s}, upsert=True)
     # email settings — pre-fill defaults for Gmail (no credentials!) if not configured

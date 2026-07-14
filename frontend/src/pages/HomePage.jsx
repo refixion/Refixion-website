@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, Star, ChevronDown } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import { SiApple, SiSamsung } from "react-icons/si";
 import { FadeUp, Section, SectionEyebrow, SectionHeading } from "../components/site/primitives";
 import { api } from "../lib/api";
@@ -25,21 +25,18 @@ function CountUp({ value, suffix = "" }) {
 
 export default function HomePage() {
   const content = useSiteContent();
-  const [reviews, setReviews] = useState({ reviews: [], average: 0, count: 0 });
   const [faqs, setFaqs] = useState([]);
   const [openFaq, setOpenFaq] = useState(null);
 
   useEffect(() => {
-    api.get("/reviews").then((r) => setReviews(r.data)).catch(() => {});
     api.get("/faqs").then((r) => setFaqs(r.data.slice(0, 5))).catch(() => {});
   }, []);
 
   if (!content) return <div className="min-h-[60vh] bg-white" />;
 
-  const { hero, trust, how_it_works, brands_section, why, reviews_section, faq_section, cta } = content;
+  const { hero, trust, how_it_works, brands_section, why, faq_section, cta } = content;
 
   const trustCardValue = (card) => {
-    if (card.value_type === "reviews_avg") return { numeric: null, display: reviews.average || 4.9, isNumber: true };
     if (card.value_type === "number") return { numeric: Number(card.value) || 0, display: card.value, isNumber: true };
     return { numeric: null, display: card.value || "", isNumber: false };
   };
@@ -83,15 +80,10 @@ export default function HomePage() {
                 )}
               </div>
             </FadeUp>
-            {hero.rating_line_enabled && (
+            {hero.rating_line_enabled && hero.rating_line_suffix && (
               <FadeUp delay={0.2}>
                 <div className="mt-10 flex flex-wrap items-center gap-6 text-[13px] text-[#666666]">
-                  <div className="flex items-center gap-1.5">
-                    {[...Array(5)].map((_, i) => <Star key={i} className="h-4 w-4 fill-[#111111] text-[#111111]" strokeWidth={0} />)}
-                    <span className="ml-1 text-[#111111] font-medium">{reviews.average || 4.9}</span>
-                    <span>· {reviews.count || 250}+ reviews</span>
-                  </div>
-                  {hero.rating_line_suffix && <><div className="h-4 w-px bg-[#EAEAEA]" /><span>{hero.rating_line_suffix}</span></>}
+                  <span>{hero.rating_line_suffix}</span>
                 </div>
               </FadeUp>
             )}
@@ -224,37 +216,6 @@ export default function HomePage() {
               </FadeUp>
             );
           })}
-        </div>
-      </Section>
-
-      {/* REVIEWS */}
-      <Section className="bg-[#FAFAFA] border-t border-[#EAEAEA]">
-        <FadeUp>
-          <div className="flex items-end justify-between flex-wrap gap-4">
-            <div>
-              <SectionEyebrow>{reviews_section.eyebrow}</SectionEyebrow>
-              <SectionHeading>{(reviews_section.heading_template || "Beoordeeld met {avg} van 5.").replace("{avg}", reviews.average || 4.9)}</SectionHeading>
-            </div>
-            <Link to="/reviews" className="text-[14px] text-[#111111] hover:underline inline-flex items-center gap-1">
-              {reviews_section.link_label} <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.5} />
-            </Link>
-          </div>
-        </FadeUp>
-        <div className="mt-12 grid md:grid-cols-3 gap-4">
-          {reviews.reviews.slice(0, 3).map((r, i) => (
-            <FadeUp key={r.id} delay={i * 0.05}>
-              <div data-testid={`review-card-${i}`} className="h-full rounded-2xl bg-white border border-[#EAEAEA] p-8">
-                <div className="flex items-center gap-0.5 mb-4">
-                  {[...Array(r.rating)].map((_, k) => <Star key={k} className="h-4 w-4 fill-[#111111] text-[#111111]" strokeWidth={0} />)}
-                </div>
-                <p className="text-[15px] text-[#111111] leading-relaxed">"{r.text}"</p>
-                <div className="mt-6 flex items-center justify-between text-[13px]">
-                  <div><div className="text-[#111111] font-medium">{r.name}</div><div className="text-[#666666]">{r.device}</div></div>
-                  <div className="text-[#666666]">{new Date(r.date).toLocaleDateString("nl-NL")}</div>
-                </div>
-              </div>
-            </FadeUp>
-          ))}
         </div>
       </Section>
 
