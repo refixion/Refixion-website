@@ -6,6 +6,11 @@ const AuthCtx = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null); // null = loading, false = not logged in, obj = admin
   useEffect(() => {
+    // Only probe /auth/me if we already have a token — avoids noisy 401s on public pages.
+    if (!localStorage.getItem("refixion_token")) {
+      setUser(false);
+      return;
+    }
     api.get("/auth/me").then((r) => setUser(r.data)).catch(() => setUser(false));
   }, []);
   const login = async (email, password) => {
