@@ -2,16 +2,17 @@ import React, { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Menu, X, ArrowRight } from "lucide-react";
+import { t } from "../../i18n";
 
 const NAV = [
-  { to: "/", label: "Home" },
-  { to: "/repairs", label: "Reparaties" },
-  { to: "/pricing", label: "Prijzen" },
-  { to: "/business", label: "Zakelijk" },
-  { to: "/about", label: "Over ons" },
-  { to: "/reviews", label: "Reviews" },
-  { to: "/faq", label: "FAQ" },
-  { to: "/contact", label: "Contact" },
+  { to: "/", key: "nav.home" },
+  { to: "/repairs", key: "nav.repairs" },
+  { to: "/pricing", key: "nav.pricing" },
+  { to: "/business", key: "nav.business" },
+  { to: "/about", key: "nav.about" },
+  { to: "/reviews", key: "nav.reviews" },
+  { to: "/faq", key: "nav.faq" },
+  { to: "/contact", key: "nav.contact" },
 ];
 
 export default function Navbar() {
@@ -49,7 +50,7 @@ export default function Navbar() {
                 `text-[14px] transition-colors ${isActive ? "text-[#111111] font-medium" : "text-[#666666] hover:text-[#111111]"}`
               }
             >
-              {n.label}
+              {t(n.key)}
             </NavLink>
           ))}
         </nav>
@@ -89,7 +90,7 @@ export default function Navbar() {
                 }
                 data-testid={`mobile-nav-${n.to.slice(1) || "home"}`}
               >
-                {n.label}
+                {t(n.key)}
               </NavLink>
             ))}
             <button

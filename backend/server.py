@@ -23,6 +23,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 from seed_data import BRANDS, DEVICES, REPAIRS, REPAIR_METHODS, WORKSHOP, REVIEWS, FAQS
+from content_seed import SITE_CONTENT_DEFAULT, SEO_DEFAULTS
 
 # ------- Config -------
 JWT_ALGORITHM = "HS256"
@@ -218,6 +219,24 @@ async def seed_all():
     # faqs
     for f in FAQS:
         await db.faqs.update_one({"id": f["id"]}, {"$setOnInsert": f}, upsert=True)
+    # site content
+    await db.site_content.update_one({"id": SITE_CONTENT_DEFAULT["id"]}, {"$setOnInsert": SITE_CONTENT_DEFAULT}, upsert=True)
+    # seo defaults
+    for s in SEO_DEFAULTS:
+        await db.seo.update_one({"path": s["path"]}, {"$setOnInsert": s}, upsert=True)
+    # email settings — pre-fill defaults for Gmail (no credentials!) if not configured
+    existing_email = await db.email_settings.find_one({})
+    if not existing_email:
+        await db.email_settings.insert_one({
+            "smtp_host": "smtp.gmail.com",
+            "smtp_port": 587,
+            "smtp_username": "",
+            "smtp_password": "",
+            "sender_name": "Refixion",
+            "sender_email": "",
+            "reply_to": "",
+            "use_tls": True,
+        })
 
 
 @app.on_event("startup")
@@ -680,6 +699,81 @@ async def admin_update_faq(faq_id: str, payload: Dict[str, Any], _: dict = Depen
 async def admin_delete_faq(faq_id: str, _: dict = Depends(admin_only)):
     await db.faqs.delete_one({"id": faq_id})
     return {"ok": True}
+
+
+# ------- Site Content (Homepage & Footer) -------
+@api.get("/site-content")
+async def get_site_content():
+    doc = await db.site_content.find_one({}, {"_id": 0})
+    return doc or {}
+
+
+@api.put("/admin/site-content")
+async def admin_update_site_content(payload: Dict[str, Any], _: dict = Depends(admin_only)):
+    # Whitelist top-level sections
+    allowed_sections = {"hero", "trust", "how_it_works", "brands_section", "why", "reviews_section", "faq_section", "cta", "footer"}
+    updates = {k: v for k, v in payload.items() if k in allowed_sections}
+    if not updates:
+        raise HTTPException(status_code=400, detail="Geen geldige velden")
+    await db.site_content.update_one({}, {"$set": updates}, upsert=True)
+    return {"ok": True}
+
+
+# ------- SEO Metadata -------
+@api.get("/seo")
+async def get_seo(path: str = Query("/")):
+    doc = await db.seo.find_one({"path": path}, {"_id": 0})
+    if not doc:
+        # fall back to home
+        doc = await db.seo.find_one({"path": "/"}, {"_id": 0})
+    return doc or {}
+
+
+@api.get("/admin/seo")
+async def admin_list_seo(_: dict = Depends(admin_only)):
+    return await db.seo.find({}, {"_id": 0}).to_list(200)
+
+
+@api.put("/admin/seo")
+async def admin_update_seo(payload: Dict[str, Any], _: dict = Depends(admin_only)):
+    if "path" not in payload:
+        raise HTTPException(status_code=400, detail="path is vereist")
+    allowed = {"path", "title", "description", "og_title", "og_description", "og_image"}
+    upd = {k: v for k, v in payload.items() if k in allowed}
+    await db.seo.update_one({"path": upd["path"]}, {"$set": upd}, upsert=True)
+    return {"ok": True}
+
+
+# ------- Price Overrides -------
+@api.get("/admin/price-overrides")
+async def admin_list_price_overrides(device_id: Optional[str] = None, _: dict = Depends(admin_only)):
+    query = {}
+    if device_id:
+        query["device_id"] = device_id
+    return await db.price_overrides.find(query, {"_id": 0}).to_list(2000)
+
+
+@api.put("/admin/price-overrides")
+async def admin_upsert_price_override(payload: RepairPriceOverride, _: dict = Depends(admin_only)):
+    data = payload.model_dump()
+    await db.price_overrides.update_one(
+        {"device_id": data["device_id"], "repair_id": data["repair_id"]},
+        {"$set": data},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api.delete("/admin/price-overrides")
+async def admin_delete_price_override(device_id: str, repair_id: str, _: dict = Depends(admin_only)):
+    await db.price_overrides.delete_one({"device_id": device_id, "repair_id": repair_id})
+    return {"ok": True}
+
+
+# ------- Brands (admin list — useful for device UI) -------
+@api.get("/admin/brands")
+async def admin_list_brands(_: dict = Depends(admin_only)):
+    return await db.brands.find({}, {"_id": 0}).sort("order", 1).to_list(100)
 
 
 # ------- Mount -------

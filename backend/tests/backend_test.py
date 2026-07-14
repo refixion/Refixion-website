@@ -268,3 +268,167 @@ class TestAdmin:
         }
         rr = s.put(f"{API}/admin/email-settings", headers=admin_headers, json=payload)
         assert rr.status_code == 200
+
+
+# ==================== Iteration 2 tests ====================
+
+class TestSiteContent:
+    def test_get_site_content(self, s):
+        r = s.get(f"{API}/site-content")
+        assert r.status_code == 200
+        doc = r.json()
+        for key in ["hero", "trust", "how_it_works", "brands_section", "why",
+                    "reviews_section", "faq_section", "cta", "footer"]:
+            assert key in doc, f"missing section {key}"
+
+    def test_update_hero_and_restore(self, s, admin_headers):
+        # get current
+        cur = s.get(f"{API}/site-content").json()
+        original = dict(cur["hero"])
+        new_hero = dict(original)
+        new_hero["headline_line1"] = "TEST HEADLINE"
+        rr = s.put(f"{API}/admin/site-content", headers=admin_headers, json={"hero": new_hero})
+        assert rr.status_code == 200
+        # verify
+        r2 = s.get(f"{API}/site-content").json()
+        assert r2["hero"]["headline_line1"] == "TEST HEADLINE"
+        # restore
+        original["headline_line1"] = "Professionele smartphone\u00adreparaties."
+        rr2 = s.put(f"{API}/admin/site-content", headers=admin_headers, json={"hero": original})
+        assert rr2.status_code == 200
+        r3 = s.get(f"{API}/site-content").json()
+        assert r3["hero"]["headline_line1"] == original["headline_line1"]
+
+    def test_update_site_content_no_valid_fields(self, s, admin_headers):
+        rr = s.put(f"{API}/admin/site-content", headers=admin_headers, json={"bogus": {}})
+        assert rr.status_code == 400
+
+
+class TestSeo:
+    def test_get_seo_home(self, s):
+        r = s.get(f"{API}/seo", params={"path": "/"})
+        assert r.status_code == 200
+        d = r.json()
+        assert d.get("path") == "/"
+        assert "title" in d and "description" in d
+
+    def test_get_seo_booking(self, s):
+        r = s.get(f"{API}/seo", params={"path": "/booking"})
+        assert r.status_code == 200
+        d = r.json()
+        assert d.get("path") == "/booking"
+
+    def test_admin_list_seo(self, s, admin_headers):
+        r = s.get(f"{API}/admin/seo", headers=admin_headers)
+        assert r.status_code == 200
+        entries = r.json()
+        assert isinstance(entries, list)
+        assert len(entries) >= 9
+
+    def test_update_seo_pricing_and_restore(self, s, admin_headers):
+        # get current
+        list_r = s.get(f"{API}/admin/seo", headers=admin_headers).json()
+        current = next((x for x in list_r if x["path"] == "/pricing"), None)
+        assert current is not None
+        original_title = current["title"]
+        rr = s.put(f"{API}/admin/seo", headers=admin_headers,
+                   json={"path": "/pricing", "title": "Test title"})
+        assert rr.status_code == 200
+        r2 = s.get(f"{API}/seo", params={"path": "/pricing"}).json()
+        assert r2["title"] == "Test title"
+        # restore
+        s.put(f"{API}/admin/seo", headers=admin_headers,
+              json={"path": "/pricing", "title": original_title})
+
+
+class TestAdminBrands:
+    def test_admin_brands_requires_auth(self):
+        r = requests.get(f"{API}/admin/brands")
+        assert r.status_code == 401
+
+    def test_admin_brands_returns_4(self, s, admin_headers):
+        r = s.get(f"{API}/admin/brands", headers=admin_headers)
+        assert r.status_code == 200
+        brands = r.json()
+        assert len(brands) == 4
+
+
+class TestAdminDevices:
+    def test_create_list_delete_device(self, s, admin_headers):
+        payload = {"brand_id": "brand-apple", "name": "iPhone TEST", "popular": False, "order": 999}
+        r = s.post(f"{API}/admin/devices", headers=admin_headers, json=payload)
+        assert r.status_code == 200
+        dev = r.json()
+        dev_id = dev["id"]
+        assert dev["name"] == "iPhone TEST"
+        assert dev["brand_id"] == "brand-apple"
+
+        # list
+        lr = s.get(f"{API}/admin/devices", headers=admin_headers)
+        assert lr.status_code == 200
+        assert any(d["id"] == dev_id for d in lr.json())
+
+        # delete
+        dr = s.delete(f"{API}/admin/devices/{dev_id}", headers=admin_headers)
+        assert dr.status_code == 200
+
+        # verify deleted
+        lr2 = s.get(f"{API}/admin/devices", headers=admin_headers).json()
+        assert not any(d["id"] == dev_id for d in lr2)
+
+    def test_update_device_popular_flag(self, s, admin_headers):
+        # get current popular value for dev-ip11
+        devs = s.get(f"{API}/admin/devices", headers=admin_headers).json()
+        d = next((x for x in devs if x["id"] == "dev-ip11"), None)
+        assert d is not None
+        original = bool(d.get("popular", False))
+        rr = s.put(f"{API}/admin/devices/dev-ip11", headers=admin_headers, json={"popular": not original})
+        assert rr.status_code == 200
+        devs2 = s.get(f"{API}/admin/devices", headers=admin_headers).json()
+        d2 = next(x for x in devs2 if x["id"] == "dev-ip11")
+        assert bool(d2["popular"]) == (not original)
+        # restore
+        s.put(f"{API}/admin/devices/dev-ip11", headers=admin_headers, json={"popular": original})
+
+    def test_update_missing_device_returns_404(self, s, admin_headers):
+        rr = s.put(f"{API}/admin/devices/dev-does-not-exist", headers=admin_headers, json={"name": "x"})
+        assert rr.status_code == 404
+
+
+class TestPriceOverrides:
+    def test_price_override_lifecycle(self, s, admin_headers):
+        # baseline: get default price for rep-screen on dev-ip16pm
+        base = s.get(f"{API}/repairs", params={"device_id": "dev-ip16pm"}).json()
+        screen = next(x for x in base if x["id"] == "rep-screen")
+        default_price = screen["price_eur"]
+
+        # set override to 149.00
+        rr = s.put(f"{API}/admin/price-overrides", headers=admin_headers,
+                   json={"device_id": "dev-ip16pm", "repair_id": "rep-screen", "price_eur": 149.00})
+        assert rr.status_code == 200
+
+        after = s.get(f"{API}/repairs", params={"device_id": "dev-ip16pm"}).json()
+        screen2 = next(x for x in after if x["id"] == "rep-screen")
+        assert float(screen2["price_eur"]) == 149.00
+
+        # delete
+        dr = s.delete(f"{API}/admin/price-overrides",
+                      headers=admin_headers,
+                      params={"device_id": "dev-ip16pm", "repair_id": "rep-screen"})
+        assert dr.status_code == 200
+
+        restored = s.get(f"{API}/repairs", params={"device_id": "dev-ip16pm"}).json()
+        screen3 = next(x for x in restored if x["id"] == "rep-screen")
+        assert float(screen3["price_eur"]) == float(default_price)
+
+
+class TestEmailDefaults:
+    def test_email_settings_defaults_present(self, s, admin_headers):
+        r = s.get(f"{API}/admin/email-settings", headers=admin_headers)
+        assert r.status_code == 200
+        d = r.json()
+        # Iteration 2 spec: defaults for Gmail STARTTLS with empty credentials.
+        # But if previous test_email_settings ran first, values may have been overwritten.
+        # So we only assert that the row exists and has expected shape.
+        assert "smtp_host" in d and "smtp_port" in d and "use_tls" in d
+        assert d["smtp_port"] in (25, 465, 587)

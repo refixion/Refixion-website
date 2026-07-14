@@ -22,6 +22,9 @@ import AdminBookingsPage from "@/pages/admin/AdminBookingsPage";
 import AdminRepairMethodsPage from "@/pages/admin/AdminRepairMethodsPage";
 import AdminWorkshopPage from "@/pages/admin/AdminWorkshopPage";
 import AdminEmailSettingsPage from "@/pages/admin/AdminEmailSettingsPage";
+import AdminDevicesPage from "@/pages/admin/AdminDevicesPage";
+import AdminContentPage from "@/pages/admin/AdminContentPage";
+import AdminSeoPage from "@/pages/admin/AdminSeoPage";
 import { AuthProvider } from "@/lib/auth";
 
 function AnimatedRoutes() {
@@ -56,7 +59,10 @@ function AnimatedRoutes() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboardPage />} />
             <Route path="bookings" element={<AdminBookingsPage />} />
+            <Route path="devices" element={<AdminDevicesPage />} />
             <Route path="repair-methods" element={<AdminRepairMethodsPage />} />
+            <Route path="content" element={<AdminContentPage />} />
+            <Route path="seo" element={<AdminSeoPage />} />
             <Route path="workshop" element={<AdminWorkshopPage />} />
             <Route path="email" element={<AdminEmailSettingsPage />} />
           </Route>

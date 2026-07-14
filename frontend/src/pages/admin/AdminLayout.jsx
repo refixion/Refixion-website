@@ -1,13 +1,16 @@
 import React from "react";
 import { Link, NavLink, Outlet, useNavigate, Navigate } from "react-router-dom";
-import { LayoutDashboard, Calendar, Wrench, Settings, Mail, Store, LogOut } from "lucide-react";
+import { LayoutDashboard, Calendar, Wrench, Settings, Mail, Store, LogOut, Smartphone, LayoutTemplate, Search } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { Toaster } from "sonner";
 
 const LINKS = [
   { to: "/admin", label: "Dashboard", Icon: LayoutDashboard, end: true },
   { to: "/admin/bookings", label: "Boekingen", Icon: Calendar },
+  { to: "/admin/devices", label: "Toestellen & prijzen", Icon: Smartphone },
   { to: "/admin/repair-methods", label: "Reparatiemethoden", Icon: Wrench },
+  { to: "/admin/content", label: "Website inhoud", Icon: LayoutTemplate },
+  { to: "/admin/seo", label: "SEO", Icon: Search },
   { to: "/admin/workshop", label: "Werkplaats", Icon: Store },
   { to: "/admin/email", label: "E-mailinstellingen", Icon: Mail },
 ];
