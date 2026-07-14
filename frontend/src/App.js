@@ -1,53 +1,78 @@
-import { useEffect } from "react";
+import React from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
+import SiteLayout from "@/components/site/SiteLayout";
+import HomePage from "@/pages/HomePage";
+import RepairsPage from "@/pages/RepairsPage";
+import PricingPage from "@/pages/PricingPage";
+import AboutPage from "@/pages/AboutPage";
+import BusinessPage from "@/pages/BusinessPage";
+import FAQPage from "@/pages/FAQPage";
+import ReviewsPage from "@/pages/ReviewsPage";
+import ContactPage from "@/pages/ContactPage";
+import LegalPage from "@/pages/LegalPage";
+import NotFoundPage from "@/pages/NotFoundPage";
+import BookingPage from "@/pages/BookingPage";
+import BookingSuccessPage from "@/pages/BookingSuccessPage";
+import AdminLoginPage from "@/pages/admin/AdminLoginPage";
+import AdminLayout from "@/pages/admin/AdminLayout";
+import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
+import AdminBookingsPage from "@/pages/admin/AdminBookingsPage";
+import AdminRepairMethodsPage from "@/pages/admin/AdminRepairMethodsPage";
+import AdminWorkshopPage from "@/pages/admin/AdminWorkshopPage";
+import AdminEmailSettingsPage from "@/pages/admin/AdminEmailSettingsPage";
+import { AuthProvider } from "@/lib/auth";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
+function AnimatedRoutes() {
+  const location = useLocation();
   return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.25 }}
+      >
+        <Routes location={location}>
+          <Route element={<SiteLayout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/repairs" element={<RepairsPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/business" element={<BusinessPage />} />
+            <Route path="/faq" element={<FAQPage />} />
+            <Route path="/reviews" element={<ReviewsPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/legal/privacy" element={<LegalPage kind="privacy" />} />
+            <Route path="/legal/terms" element={<LegalPage kind="terms" />} />
+            <Route path="/legal/cookies" element={<LegalPage kind="cookies" />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+          <Route path="/booking" element={<BookingPage />} />
+          <Route path="/booking/success" element={<BookingSuccessPage />} />
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboardPage />} />
+            <Route path="bookings" element={<AdminBookingsPage />} />
+            <Route path="repair-methods" element={<AdminRepairMethodsPage />} />
+            <Route path="workshop" element={<AdminWorkshopPage />} />
+            <Route path="email" element={<AdminEmailSettingsPage />} />
+          </Route>
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
   );
-};
+}
 
 function App() {
   return (
     <div className="App">
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
+        <AuthProvider>
+          <AnimatedRoutes />
+        </AuthProvider>
       </BrowserRouter>
     </div>
   );
