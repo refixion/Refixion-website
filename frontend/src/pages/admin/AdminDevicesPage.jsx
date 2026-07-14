@@ -170,7 +170,10 @@ function PriceOverridesModal({ device, onClose }) {
       r.data.forEach((o) => (map[o.repair_id] = o.price_eur));
       setOverrides(map);
     });
-  }, [device]);
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [device, onClose]);
 
   if (!device) return null;
 
