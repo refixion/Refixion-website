@@ -233,8 +233,13 @@ async def seed_all():
     await db.brands.delete_many({"id": {"$in": ["brand-google", "brand-oneplus"]}})
     for b in BRANDS:
         await db.brands.update_one({"id": b["id"]}, {"$set": b}, upsert=True)
-    # devices — remove ones under deprecated brands, then upsert catalog (name/order/popular from seed; enabled preserved per admin)
+    # devices — remove ones under deprecated brands + orphans no longer in the seed catalog
     await db.devices.delete_many({"brand_id": {"$in": ["brand-google", "brand-oneplus"]}})
+    seed_device_ids = [d["id"] for d in DEVICES]
+    await db.devices.delete_many({
+        "brand_id": {"$in": ["brand-apple", "brand-samsung"]},
+        "id": {"$nin": seed_device_ids},
+    })
     for d in DEVICES:
         await db.devices.update_one(
             {"id": d["id"]},

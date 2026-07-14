@@ -18,6 +18,21 @@ Build the official website for Refixion — a premium Dutch smartphone repair co
 - Emails: internal notification to refixionstore@gmail.com + customer HTML confirmation, delivered via SMTP configurable in admin panel.
 - Admin panel: JWT login, bookings management with status transitions & CSV export, repair-method CRUD, workshop settings, email-settings.
 
+## Implemented (Iteration 3 — 2026-02-14)
+- **New Refixion logo** (phone-with-lightning + wordmark) — image served from `/brand/refixion-logo.png` + `/brand/refixion-mark.png`, applied to navbar, footer, admin sidebar, admin login, booking wizard header, favicon.
+- **Brands cleanup**: Google + OnePlus removed. Only **Apple** (33 iPhones, from iPhone 7 to iPhone 16 Pro Max + SE) and **Samsung** (25 phones, S24 Ultra → S20, Note 20, Z Fold/Flip 4-5, A15/A34/A54/A55) — phones only, no tablets. Seed loader now purges orphan devices whose IDs are no longer in the catalog.
+- **New pricing/repair model**: introduced `part_options` collection. Every device × repair has one or more part options; each carries independent price, warranty_days, warranty_label, description and enabled flag. Legacy `price_overrides` collection kept for backwards-compat but no longer used.
+- **Screen quality tiers**: three qualities per iPhone/Samsung screen — Origineel scherm (OEM) 12mo warranty, High Quality Display (Soft OLED) 12mo, Werkend scherm (used original) 30 days. Prices seeded from sheet price × multiplier (1.0 / 0.75 / 0.55) as starting values — every price fully editable per device from admin.
+- **15 repair types**: Scherm, Batterij, Achterkant, Oplaadpoort, Achter camera, Cameralens, Luidspreker, Oorspeaker, Microfoon, Vibratie motor, Knoppen, Face ID, Waterschade, Diagnose. Repairs not in the sheet start as "Op aanvraag" (no numeric price) — admin can fill in prices later.
+- **Booking wizard** — step 3 now has a conditional quality substep. If the selected repair has >1 enabled part options, the wizard shows a "Kies onderdeel-kwaliteit" view with cards showing price + description + warranty per tier. Single-option repairs auto-select and skip the substep. Confirmation step + emails + admin bookings now display selected quality + warranty label.
+- **Warranty system**:
+  - `/api/warranties` (public) — full catalog with `covers` / `excludes` per repair + general terms text.
+  - `/garantie` public page — grouped display with Gedekt / Niet gedekt columns and general terms.
+  - `/admin/warranties` — full CRUD on warranty entries (label, days, warranty label, covers, excludes, enabled), plus editable general warranty text.
+  - Warranty snapshot stored on each booking (`warranty_days`, `warranty_label`, `part_quality_label`).
+- **Admin → Toestellen & prijzen → Prijzen modal**: replaced legacy price-override modal. Now shows part_options grouped by repair type — each row has price / warranty_days / warranty_label / enabled / Save. Full per-device per-quality pricing control.
+- **Testing**: 52/52 backend tests pass (16 new iter-3 + 36 regressions). E2E wizard flows verified for both multi-quality (screen) and single-option (battery) repairs, plus /garantie public page and /admin/warranties.
+
 ## Implemented (Iteration 2 — 2026-02-14)
 - **Gmail SMTP defaults** pre-seeded (`smtp.gmail.com` : 587, STARTTLS on, empty credentials). Admin only pastes username + App Password when ready — no hard-coded secrets.
 - **Admin → Toestellen & prijzen** (`/admin/devices`): brand tabs, inline device edit (name/order/popular/enabled), add device modal, per-device price-override modal that upserts on blur and restores default when cleared.
