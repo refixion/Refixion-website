@@ -13,6 +13,7 @@ const nl = {
     business: "Zakelijk",
     about: "Over ons",
     reviews: "Reviews",
+    warranty: "Garantie",
     faq: "FAQ",
     contact: "Contact",
     book_repair: "Reparatie boeken",

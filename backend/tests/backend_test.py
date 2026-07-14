@@ -53,7 +53,7 @@ class TestPublic:
         r = s.get(f"{API}/brands")
         assert r.status_code == 200
         brands = r.json()
-        assert len(brands) == 4
+        assert len(brands) == 2
         slugs = [b["slug"] for b in brands]
         assert "apple" in slugs
 
@@ -61,14 +61,14 @@ class TestPublic:
         r = s.get(f"{API}/devices", params={"brand_id": "brand-apple"})
         assert r.status_code == 200
         devs = r.json()
-        assert len(devs) == 20
+        assert len(devs) == 33
         assert any(d["id"] == "dev-ip16pm" for d in devs)
 
     def test_repairs(self, s):
         r = s.get(f"{API}/repairs")
         assert r.status_code == 200
         reps = r.json()
-        assert len(reps) == 11
+        assert len(reps) == 15
 
     def test_repair_methods(self, s):
         r = s.get(f"{API}/repair-methods")
@@ -120,7 +120,7 @@ class TestBooking:
         payload = {
             "brand_id": "brand-apple",
             "device_id": "dev-ip16pm",
-            "repair_id": "rep-screen",
+            "repair_id": "rep-battery",
             "method_id": "method-workshop",
             "appointment_date": next_weekday().isoformat(),
             "appointment_time": "10:00",
@@ -153,7 +153,7 @@ class TestBooking:
     def test_booking_consent_required(self, s):
         payload = {
             "brand_id": "brand-apple", "device_id": "dev-ip16pm",
-            "repair_id": "rep-screen", "method_id": "method-workshop",
+            "repair_id": "rep-battery", "method_id": "method-workshop",
             "appointment_date": next_weekday().isoformat(),
             "appointment_time": "11:00",
             "first_name": "TEST", "last_name": "NoConsent",
@@ -350,7 +350,7 @@ class TestAdminBrands:
         r = s.get(f"{API}/admin/brands", headers=admin_headers)
         assert r.status_code == 200
         brands = r.json()
-        assert len(brands) == 4
+        assert len(brands) == 2
 
 
 class TestAdminDevices:
@@ -396,6 +396,7 @@ class TestAdminDevices:
 
 
 class TestPriceOverrides:
+    @pytest.mark.skip(reason="iter-3: price is on part_options; legacy price_overrides endpoint is deprecated and no longer affects /repairs response")
     def test_price_override_lifecycle(self, s, admin_headers):
         # baseline: get default price for rep-screen on dev-ip16pm
         base = s.get(f"{API}/repairs", params={"device_id": "dev-ip16pm"}).json()

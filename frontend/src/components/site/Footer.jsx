@@ -4,6 +4,7 @@ import { Instagram, Facebook, Mail, Phone, MapPin } from "lucide-react";
 import { t } from "../../i18n";
 import { useSiteContent } from "../../lib/useSiteContent";
 import { api } from "../../lib/api";
+import { LogoFull } from "./Logo";
 
 const DAY_KEYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const DAY_LABELS_NL = { monday: "Ma", tuesday: "Di", wednesday: "Wo", thursday: "Do", friday: "Vr", saturday: "Za", sunday: "Zo" };
@@ -19,12 +20,7 @@ export default function Footer() {
     <footer data-testid="site-footer" className="border-t border-[#EAEAEA] bg-[#FAFAFA] mt-24">
       <div className="container-page py-16 grid grid-cols-2 md:grid-cols-4 gap-10">
         <div className="col-span-2">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-[#111111] flex items-center justify-center">
-              <span className="text-white text-[14px] font-semibold">R</span>
-            </div>
-            <span className="text-[18px] font-semibold tracking-tight">{ws?.business_name || "Refixion"}</span>
-          </div>
+          <LogoFull height={32} />
           <p className="mt-4 text-[14px] text-[#666666] leading-relaxed max-w-sm">
             {footer.tagline || "Premium smartphone reparaties met volledige transparantie, moderne technologie en uitzonderlijke service."}
           </p>
@@ -47,8 +43,7 @@ export default function Footer() {
           <ul className="space-y-3 text-[14px]">
             <li><Link to="/repairs?brand=apple" className="text-[#111111] hover:text-[#666666]">Apple iPhone</Link></li>
             <li><Link to="/repairs?brand=samsung" className="text-[#111111] hover:text-[#666666]">Samsung Galaxy</Link></li>
-            <li><Link to="/repairs?brand=google" className="text-[#111111] hover:text-[#666666]">Google Pixel</Link></li>
-            <li><Link to="/repairs?brand=oneplus" className="text-[#111111] hover:text-[#666666]">OnePlus</Link></li>
+            <li><Link to="/garantie" className="text-[#111111] hover:text-[#666666]">Garantie</Link></li>
             <li><Link to="/booking" className="text-[#111111] hover:text-[#666666]">{t("nav.book_repair")}</Link></li>
           </ul>
         </div>

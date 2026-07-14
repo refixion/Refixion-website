@@ -22,7 +22,10 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
-from seed_data import BRANDS, DEVICES, REPAIRS, REPAIR_METHODS, WORKSHOP, REVIEWS, FAQS
+from seed_data import (
+    BRANDS, DEVICES, REPAIRS, REPAIR_METHODS, WORKSHOP, REVIEWS, FAQS,
+    WARRANTIES, GENERAL_WARRANTY_TEXT, build_part_options,
+)
 from content_seed import SITE_CONTENT_DEFAULT, SEO_DEFAULTS
 
 # ------- Config -------
@@ -106,6 +109,7 @@ class BookingIn(BaseModel):
     brand_id: str
     device_id: str
     repair_id: str
+    part_option_id: Optional[str] = None  # required for repairs with multiple enabled part options
     method_id: str
     appointment_date: str  # YYYY-MM-DD
     appointment_time: str  # HH:MM
@@ -119,6 +123,32 @@ class BookingIn(BaseModel):
     city: str
     notes: Optional[str] = ""
     consent: bool
+
+
+class PartOptionIn(BaseModel):
+    device_id: str
+    repair_id: str
+    quality_key: str
+    quality_label: str
+    description: str = ""
+    price_eur: Optional[float] = None
+    on_request: bool = False
+    warranty_days: int = 365
+    warranty_label: str = "12 maanden garantie"
+    enabled: bool = True
+    order: int = 1
+
+
+class WarrantyIn(BaseModel):
+    repair_id: str
+    quality_key: str = "standard"
+    label: str
+    warranty_days: int
+    warranty_label: str
+    covers: List[str] = []
+    excludes: List[str] = []
+    order: int = 1
+    enabled: bool = True
 
 
 class RepairMethodIn(BaseModel):
@@ -199,15 +229,43 @@ async def seed_all():
         if not verify_password(admin_pw, existing["password_hash"]):
             await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_pw)}})
 
-    # brands
+    # brands — remove deprecated (google/oneplus)
+    await db.brands.delete_many({"id": {"$in": ["brand-google", "brand-oneplus"]}})
     for b in BRANDS:
-        await db.brands.update_one({"id": b["id"]}, {"$setOnInsert": b}, upsert=True)
-    # devices
+        await db.brands.update_one({"id": b["id"]}, {"$set": b}, upsert=True)
+    # devices — remove ones under deprecated brands, then upsert catalog (name/order/popular from seed; enabled preserved per admin)
+    await db.devices.delete_many({"brand_id": {"$in": ["brand-google", "brand-oneplus"]}})
     for d in DEVICES:
-        await db.devices.update_one({"id": d["id"]}, {"$setOnInsert": {**d, "enabled": True}}, upsert=True)
-    # repairs
+        await db.devices.update_one(
+            {"id": d["id"]},
+            {"$set": {"brand_id": d["brand_id"], "name": d["name"], "popular": d["popular"], "order": d["order"]},
+             "$setOnInsert": {"enabled": True}},
+            upsert=True,
+        )
+    # repairs — upsert catalog (name/description/duration/icon/order from seed; enabled preserved)
     for r in REPAIRS:
-        await db.repairs.update_one({"id": r["id"]}, {"$setOnInsert": r}, upsert=True)
+        await db.repairs.update_one(
+            {"id": r["id"]},
+            {"$set": {k: r[k] for k in ("name", "description", "duration_minutes", "icon", "order", "has_quality_tiers", "on_request")},
+             "$setOnInsert": {"enabled": True}},
+            upsert=True,
+        )
+    # part options — seed only missing ones (never overwrite admin price edits)
+    for po in build_part_options():
+        await db.part_options.update_one(
+            {"id": po["id"]},
+            {"$setOnInsert": po},
+            upsert=True,
+        )
+    # warranty catalog (per-repair covers/excludes)
+    for w in WARRANTIES:
+        await db.warranties.update_one({"id": w["id"]}, {"$setOnInsert": w}, upsert=True)
+    # general warranty text
+    await db.settings.update_one(
+        {"key": "general_warranty_text"},
+        {"$setOnInsert": {"key": "general_warranty_text", "value": GENERAL_WARRANTY_TEXT}},
+        upsert=True,
+    )
     # repair methods
     for m in REPAIR_METHODS:
         await db.repair_methods.update_one({"id": m["id"]}, {"$setOnInsert": m}, upsert=True)
@@ -274,15 +332,37 @@ async def list_devices(brand_id: Optional[str] = None, q: Optional[str] = None):
 
 @api.get("/repairs")
 async def list_repairs(device_id: Optional[str] = None):
-    rows = await db.repairs.find({"enabled": True}, {"_id": 0}).to_list(200)
-    # apply per-device price override if present
+    """Return enabled repairs. If device_id is provided, attach enabled part_options
+    (each with own price and warranty) plus a computed `from_price` for card display."""
+    rows = await db.repairs.find({"enabled": True}, {"_id": 0}).sort("order", 1).to_list(200)
     if device_id:
-        overrides = await db.price_overrides.find({"device_id": device_id}, {"_id": 0}).to_list(500)
-        omap = {o["repair_id"]: o["price_eur"] for o in overrides}
+        options = await db.part_options.find({"device_id": device_id, "enabled": True}, {"_id": 0}).to_list(1000)
+        by_repair: Dict[str, List[Dict[str, Any]]] = {}
+        for o in options:
+            by_repair.setdefault(o["repair_id"], []).append(o)
         for r in rows:
-            if r["id"] in omap:
-                r["price_eur"] = omap[r["id"]]
+            opts = sorted(by_repair.get(r["id"], []), key=lambda x: x.get("order", 99))
+            r["part_options"] = opts
+            # from_price / any_on_request for display
+            prices = [o["price_eur"] for o in opts if o.get("price_eur") is not None]
+            r["from_price"] = min(prices) if prices else None
+            r["any_on_request"] = any(o.get("on_request") or o.get("price_eur") is None for o in opts) or not opts
     return rows
+
+
+@api.get("/part-options")
+async def list_part_options(device_id: str, repair_id: str):
+    """Public — enabled part options only, for the booking wizard."""
+    rows = await db.part_options.find({"device_id": device_id, "repair_id": repair_id, "enabled": True}, {"_id": 0}).sort("order", 1).to_list(50)
+    return rows
+
+
+@api.get("/warranties")
+async def list_warranties():
+    """Public warranty catalog (per repair)."""
+    rows = await db.warranties.find({"enabled": True}, {"_id": 0}).sort("order", 1).to_list(200)
+    text_doc = await db.settings.find_one({"key": "general_warranty_text"}, {"_id": 0})
+    return {"items": rows, "general_text": (text_doc or {}).get("value", "")}
 
 
 @api.get("/repair-methods")
@@ -357,14 +437,27 @@ async def _load_booking_context(payload: BookingIn):
     method = await db.repair_methods.find_one({"id": payload.method_id}, {"_id": 0})
     if not all([brand, device, repair, method]):
         raise HTTPException(status_code=400, detail="Ongeldige selectie")
-    # price override
-    override = await db.price_overrides.find_one({"device_id": device["id"], "repair_id": repair["id"]}, {"_id": 0})
-    price = float(override["price_eur"]) if override else float(repair["price_eur"])
+
+    # Resolve part option — required. Client may either send an explicit part_option_id,
+    # or (when repair has a single option) we can auto-resolve.
+    if payload.part_option_id:
+        option = await db.part_options.find_one({"id": payload.part_option_id, "enabled": True}, {"_id": 0})
+    else:
+        opts = await db.part_options.find({"device_id": device["id"], "repair_id": repair["id"], "enabled": True}, {"_id": 0}).to_list(10)
+        if len(opts) != 1:
+            raise HTTPException(status_code=400, detail="Selecteer een onderdeel-kwaliteit")
+        option = opts[0]
+    if not option:
+        raise HTTPException(status_code=400, detail="Ongeldig onderdeel")
+
+    price = float(option["price_eur"]) if option.get("price_eur") is not None else 0.0
+    on_request = option.get("on_request") or option.get("price_eur") is None
     total = price + float(method.get("additional_price", 0))
-    return brand, device, repair, method, price, total
+    return brand, device, repair, method, option, price, on_request, total
 
 
 def _customer_email_html(booking: dict, ws: dict) -> str:
+    price_line = "Op aanvraag" if booking.get("on_request") else f"<strong>€{booking['total_price']:.2f}</strong>"
     return f"""<!DOCTYPE html><html><body style="margin:0;padding:0;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#111;">
 <div style="max-width:600px;margin:0 auto;padding:40px 24px;">
   <div style="background:#fff;border:1px solid #eaeaea;border-radius:16px;padding:40px;">
@@ -374,9 +467,11 @@ def _customer_email_html(booking: dict, ws: dict) -> str:
       <table style="width:100%;font-size:14px;color:#111;border-collapse:collapse;">
         <tr><td style="color:#666;padding:8px 0;">Toestel</td><td style="text-align:right;">{booking['brand_name']} {booking['device_name']}</td></tr>
         <tr><td style="color:#666;padding:8px 0;">Reparatie</td><td style="text-align:right;">{booking['repair_name']}</td></tr>
+        <tr><td style="color:#666;padding:8px 0;">Onderdeel</td><td style="text-align:right;">{booking.get('part_quality_label','Standaard')}</td></tr>
+        <tr><td style="color:#666;padding:8px 0;">Garantie</td><td style="text-align:right;">{booking.get('warranty_label','')}</td></tr>
         <tr><td style="color:#666;padding:8px 0;">Methode</td><td style="text-align:right;">{booking['method_title']}</td></tr>
         <tr><td style="color:#666;padding:8px 0;">Datum</td><td style="text-align:right;">{booking['appointment_date']} · {booking['appointment_time']}</td></tr>
-        <tr><td style="color:#666;padding:8px 0;">Geschatte prijs</td><td style="text-align:right;"><strong>€{booking['total_price']:.2f}</strong></td></tr>
+        <tr><td style="color:#666;padding:8px 0;">Geschatte prijs</td><td style="text-align:right;">{price_line}</td></tr>
       </table>
     </div>
     <p style="color:#666;margin-top:32px;font-size:14px;">Wij nemen contact met u op indien er wijzigingen zijn. Vragen? Reageer op deze e-mail of bel {ws.get('phone','')}.</p>
@@ -397,6 +492,8 @@ def _internal_email_html(booking: dict) -> str:
 <tr><td style="padding:4px 12px;color:#666;">Adres</td><td>{booking['street']} {booking['house_number']}, {booking['postal_code']} {booking['city']}</td></tr>
 <tr><td style="padding:4px 12px;color:#666;">Merk / Toestel</td><td>{booking['brand_name']} · {booking['device_name']}</td></tr>
 <tr><td style="padding:4px 12px;color:#666;">Reparatie</td><td>{booking['repair_name']}</td></tr>
+<tr><td style="padding:4px 12px;color:#666;">Onderdeel</td><td>{booking.get('part_quality_label','Standaard')}</td></tr>
+<tr><td style="padding:4px 12px;color:#666;">Garantie</td><td>{booking.get('warranty_label','')}</td></tr>
 <tr><td style="padding:4px 12px;color:#666;">Methode</td><td>{booking['method_title']}</td></tr>
 <tr><td style="padding:4px 12px;color:#666;">Datum / Tijd</td><td>{booking['appointment_date']} · {booking['appointment_time']}</td></tr>
 <tr><td style="padding:4px 12px;color:#666;">Duur</td><td>{booking['duration_minutes']} min</td></tr>
@@ -439,7 +536,7 @@ async def _send_email(to_email: str, subject: str, html: str) -> bool:
 async def create_booking(payload: BookingIn, request: Request):
     if not payload.consent:
         raise HTTPException(status_code=400, detail="Toestemming vereist")
-    brand, device, repair, method, price, total = await _load_booking_context(payload)
+    brand, device, repair, method, option, price, on_request, total = await _load_booking_context(payload)
     ws = await db.workshop.find_one({}, {"_id": 0}) or {}
 
     ref = _generate_reference()
@@ -449,6 +546,11 @@ async def create_booking(payload: BookingIn, request: Request):
         "brand_id": brand["id"], "brand_name": brand["name"],
         "device_id": device["id"], "device_name": device["name"],
         "repair_id": repair["id"], "repair_name": repair["name"],
+        "part_option_id": option["id"],
+        "part_quality_key": option["quality_key"],
+        "part_quality_label": option["quality_label"],
+        "warranty_days": option.get("warranty_days", 365),
+        "warranty_label": option.get("warranty_label", ""),
         "method_id": method["id"], "method_title": method["title"],
         "appointment_date": payload.appointment_date,
         "appointment_time": payload.appointment_time,
@@ -463,6 +565,7 @@ async def create_booking(payload: BookingIn, request: Request):
         "notes": payload.notes or "",
         "duration_minutes": repair.get("duration_minutes", 60),
         "price_eur": price,
+        "on_request": on_request,
         "additional_price": method.get("additional_price", 0),
         "total_price": total,
         "status": "pending",
@@ -698,6 +801,83 @@ async def admin_update_faq(faq_id: str, payload: Dict[str, Any], _: dict = Depen
 @api.delete("/admin/faqs/{faq_id}")
 async def admin_delete_faq(faq_id: str, _: dict = Depends(admin_only)):
     await db.faqs.delete_one({"id": faq_id})
+    return {"ok": True}
+
+
+# ------- Admin: Part options -------
+@api.get("/admin/part-options")
+async def admin_list_part_options(device_id: Optional[str] = None, repair_id: Optional[str] = None, _: dict = Depends(admin_only)):
+    query: Dict[str, Any] = {}
+    if device_id:
+        query["device_id"] = device_id
+    if repair_id:
+        query["repair_id"] = repair_id
+    return await db.part_options.find(query, {"_id": 0}).sort("order", 1).to_list(5000)
+
+
+@api.post("/admin/part-options")
+async def admin_create_part_option(payload: PartOptionIn, _: dict = Depends(admin_only)):
+    data = payload.model_dump()
+    data["id"] = f"po-{data['device_id']}-{data['repair_id']}-{data['quality_key']}"
+    existing = await db.part_options.find_one({"id": data["id"]})
+    if existing:
+        raise HTTPException(status_code=400, detail="Deze optie bestaat al voor dit toestel/reparatie")
+    await db.part_options.insert_one(dict(data))
+    return data
+
+
+@api.put("/admin/part-options/{option_id}")
+async def admin_update_part_option(option_id: str, payload: PartOptionIn, _: dict = Depends(admin_only)):
+    result = await db.part_options.update_one({"id": option_id}, {"$set": payload.model_dump()})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Onderdeel-optie niet gevonden")
+    return {"ok": True}
+
+
+@api.delete("/admin/part-options/{option_id}")
+async def admin_delete_part_option(option_id: str, _: dict = Depends(admin_only)):
+    await db.part_options.delete_one({"id": option_id})
+    return {"ok": True}
+
+
+# ------- Admin: Warranties (per-repair catalog) -------
+@api.get("/admin/warranties")
+async def admin_list_warranties(_: dict = Depends(admin_only)):
+    return await db.warranties.find({}, {"_id": 0}).sort([("repair_id", 1), ("order", 1)]).to_list(500)
+
+
+@api.post("/admin/warranties")
+async def admin_create_warranty(payload: WarrantyIn, _: dict = Depends(admin_only)):
+    data = payload.model_dump()
+    data["id"] = f"war-{data['repair_id']}-{data['quality_key']}"
+    await db.warranties.update_one({"id": data["id"]}, {"$set": data}, upsert=True)
+    return data
+
+
+@api.put("/admin/warranties/{warranty_id}")
+async def admin_update_warranty(warranty_id: str, payload: WarrantyIn, _: dict = Depends(admin_only)):
+    result = await db.warranties.update_one({"id": warranty_id}, {"$set": payload.model_dump()})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Garantie niet gevonden")
+    return {"ok": True}
+
+
+@api.delete("/admin/warranties/{warranty_id}")
+async def admin_delete_warranty(warranty_id: str, _: dict = Depends(admin_only)):
+    await db.warranties.delete_one({"id": warranty_id})
+    return {"ok": True}
+
+
+@api.get("/admin/general-warranty")
+async def admin_get_general_warranty(_: dict = Depends(admin_only)):
+    doc = await db.settings.find_one({"key": "general_warranty_text"}, {"_id": 0})
+    return {"value": (doc or {}).get("value", "")}
+
+
+@api.put("/admin/general-warranty")
+async def admin_update_general_warranty(payload: Dict[str, Any], _: dict = Depends(admin_only)):
+    val = str(payload.get("value", ""))
+    await db.settings.update_one({"key": "general_warranty_text"}, {"$set": {"value": val}}, upsert=True)
     return {"ok": True}
 
 

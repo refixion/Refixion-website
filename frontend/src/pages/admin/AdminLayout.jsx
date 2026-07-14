@@ -1,14 +1,16 @@
 import React from "react";
 import { Link, NavLink, Outlet, useNavigate, Navigate } from "react-router-dom";
-import { LayoutDashboard, Calendar, Wrench, Settings, Mail, Store, LogOut, Smartphone, LayoutTemplate, Search } from "lucide-react";
+import { LayoutDashboard, Calendar, Wrench, Settings, Mail, Store, LogOut, Smartphone, LayoutTemplate, Search, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { Toaster } from "sonner";
+import { LogoFull } from "../../components/site/Logo";
 
 const LINKS = [
   { to: "/admin", label: "Dashboard", Icon: LayoutDashboard, end: true },
   { to: "/admin/bookings", label: "Boekingen", Icon: Calendar },
   { to: "/admin/devices", label: "Toestellen & prijzen", Icon: Smartphone },
   { to: "/admin/repair-methods", label: "Reparatiemethoden", Icon: Wrench },
+  { to: "/admin/warranties", label: "Garanties", Icon: ShieldCheck },
   { to: "/admin/content", label: "Website inhoud", Icon: LayoutTemplate },
   { to: "/admin/seo", label: "SEO", Icon: Search },
   { to: "/admin/workshop", label: "Werkplaats", Icon: Store },
@@ -27,10 +29,8 @@ export default function AdminLayout() {
       <div className="grid lg:grid-cols-[260px_1fr]">
         <aside className="border-r border-[#EAEAEA] bg-white lg:min-h-screen">
           <div className="p-6 flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-[#111111] flex items-center justify-center">
-              <span className="text-white text-[13px] font-semibold">R</span>
-            </div>
-            <span className="text-[15px] font-semibold tracking-tight">Refixion Admin</span>
+            <LogoFull height={24} />
+            <span className="text-[12px] uppercase tracking-wider text-[#666666]">Admin</span>
           </div>
           <nav className="px-3 py-2 space-y-1">
             {LINKS.map((l) => (

@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FadeUp, Section, SectionEyebrow, SectionHeading } from "../components/site/primitives";
-import { SiApple, SiSamsung, SiGoogle, SiOneplus } from "react-icons/si";
+import { SiApple, SiSamsung } from "react-icons/si";
 import { ArrowRight } from "lucide-react";
 import { api } from "../lib/api";
 
-const BRAND_ICONS = { apple: SiApple, samsung: SiSamsung, google: SiGoogle, oneplus: SiOneplus };
+const BRAND_ICONS = { apple: SiApple, samsung: SiSamsung };
 
 export default function PricingPage() {
   const [brands, setBrands] = useState([]);

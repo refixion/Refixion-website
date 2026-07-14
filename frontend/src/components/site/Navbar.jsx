@@ -3,13 +3,14 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Menu, X, ArrowRight } from "lucide-react";
 import { t } from "../../i18n";
+import { LogoFull } from "./Logo";
 
 const NAV = [
   { to: "/", key: "nav.home" },
   { to: "/repairs", key: "nav.repairs" },
   { to: "/pricing", key: "nav.pricing" },
   { to: "/business", key: "nav.business" },
-  { to: "/about", key: "nav.about" },
+  { to: "/garantie", key: "nav.warranty" },
   { to: "/reviews", key: "nav.reviews" },
   { to: "/faq", key: "nav.faq" },
   { to: "/contact", key: "nav.contact" },
@@ -33,10 +34,7 @@ export default function Navbar() {
     >
       <div className="container-page flex items-center justify-between">
         <Link to="/" data-testid="nav-logo" className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-lg bg-[#111111] flex items-center justify-center">
-            <span className="text-white text-[13px] font-semibold tracking-tight">R</span>
-          </div>
-          <span className="text-[17px] font-semibold tracking-tight text-[#111111]">Refixion</span>
+          <LogoFull height={28} />
         </Link>
 
         <nav className="hidden lg:flex items-center gap-8">

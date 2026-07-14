@@ -10,6 +10,7 @@ const defaultState = {
   brand: null,
   device: null,
   repair: null,
+  part_option: null,   // selected quality/part option
   method: null,
   date: null,
   time: null,

@@ -159,17 +159,12 @@ export default function AdminDevicesPage() {
 }
 
 function PriceOverridesModal({ device, onClose }) {
-  const [repairs, setRepairs] = useState([]);
-  const [overrides, setOverrides] = useState({});
+  const [rows, setRows] = useState([]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!device) return;
-    api.get("/admin/repairs").then((r) => setRepairs(r.data));
-    api.get(`/admin/price-overrides?device_id=${device.id}`).then((r) => {
-      const map = {};
-      r.data.forEach((o) => (map[o.repair_id] = o.price_eur));
-      setOverrides(map);
-    });
+    api.get(`/admin/part-options?device_id=${device.id}`).then((r) => setRows(r.data));
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -177,58 +172,69 @@ function PriceOverridesModal({ device, onClose }) {
 
   if (!device) return null;
 
-  const save = async (repair_id, price_eur) => {
-    if (price_eur === "" || price_eur === null || price_eur === undefined) {
-      await api.delete(`/admin/price-overrides?device_id=${device.id}&repair_id=${repair_id}`);
-      setOverrides((prev) => { const c = { ...prev }; delete c[repair_id]; return c; });
-      toast.success("Standaardprijs hersteld");
-    } else {
-      await api.put(`/admin/price-overrides`, { device_id: device.id, repair_id, price_eur: Number(price_eur) });
-      setOverrides((prev) => ({ ...prev, [repair_id]: Number(price_eur) }));
+  const save = async (opt) => {
+    setSaving(true);
+    try {
+      await api.put(`/admin/part-options/${opt.id}`, {
+        device_id: opt.device_id, repair_id: opt.repair_id,
+        quality_key: opt.quality_key, quality_label: opt.quality_label,
+        description: opt.description || "",
+        price_eur: opt.price_eur === "" || opt.price_eur == null ? null : Number(opt.price_eur),
+        on_request: opt.price_eur === "" || opt.price_eur == null ? true : !!opt.on_request,
+        warranty_days: Number(opt.warranty_days) || 0,
+        warranty_label: opt.warranty_label || "",
+        enabled: !!opt.enabled, order: Number(opt.order) || 1,
+      });
       toast.success("Opgeslagen");
-    }
+    } catch (e) { toast.error("Opslaan mislukt"); }
+    finally { setSaving(false); }
   };
+
+  // Group by repair
+  const grouped = {};
+  rows.forEach((r) => { (grouped[r.repair_id] ??= []).push(r); });
 
   return (
     <AnimatePresence>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white rounded-2xl border border-[#EAEAEA] w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white rounded-2xl border border-[#EAEAEA] w-full max-w-3xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between p-6 border-b border-[#EAEAEA]">
             <div>
               <div className="text-[16px] font-semibold">Prijzen · {device.name}</div>
-              <div className="text-[12px] text-[#666666] mt-0.5">Laat leeg voor standaardprijs. Bewaar automatisch bij afsluiten van veld.</div>
+              <div className="text-[12px] text-[#666666] mt-0.5">Bewerk prijs, garantie en beschikbaarheid per onderdeel-kwaliteit.</div>
             </div>
             <button onClick={onClose} className="text-[#666666] hover:text-[#111111]"><X className="h-5 w-5" strokeWidth={1.5} /></button>
           </div>
-          <div className="p-6 overflow-y-auto">
-            <div className="grid gap-2">
-              {repairs.map((r) => (
-                <div key={r.id} className="flex items-center gap-3 py-2 border-b border-[#EAEAEA] last:border-0">
-                  <div className="flex-1">
-                    <div className="text-[14px] font-medium text-[#111111]">{r.name}</div>
-                    <div className="text-[12px] text-[#666666]">Standaardprijs €{r.price_eur}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] text-[#666666]">€</span>
-                    <input
-                      data-testid={`price-${r.id}`}
-                      type="number"
-                      step="0.01"
-                      defaultValue={overrides[r.id] ?? ""}
-                      placeholder={String(r.price_eur)}
-                      onBlur={(e) => {
-                        const v = e.target.value;
-                        const current = overrides[r.id];
-                        if (v === "" && current === undefined) return;
-                        if (Number(v) === current) return;
-                        save(r.id, v);
-                      }}
-                      className="w-28 rounded-xl border border-[#EAEAEA] px-3 py-2 text-[13px] outline-none focus:border-[#111111]"
-                    />
-                  </div>
+          <div className="p-6 overflow-y-auto space-y-6">
+            {Object.entries(grouped).map(([repairId, opts]) => (
+              <div key={repairId}>
+                <div className="text-[12px] uppercase tracking-wider text-[#666666] mb-2">{repairId.replace("rep-", "")}</div>
+                <div className="space-y-2">
+                  {opts.map((o, i) => {
+                    const idx = rows.findIndex((x) => x.id === o.id);
+                    const upd = (patch) => { const copy = [...rows]; copy[idx] = { ...o, ...patch }; setRows(copy); };
+                    return (
+                      <div key={o.id} className="grid md:grid-cols-6 gap-2 items-center bg-[#FAFAFA] rounded-xl p-3">
+                        <div className="md:col-span-2 text-[13px] text-[#111111] font-medium">{o.quality_label}</div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[13px] text-[#666666]">€</span>
+                          <input data-testid={`po-price-${o.id}`} type="number" step="0.01" value={o.price_eur ?? ""} placeholder="op aanvraag" onChange={(e) => upd({ price_eur: e.target.value })} className="w-full rounded-lg border border-[#EAEAEA] px-2 py-1 text-[13px]" />
+                        </div>
+                        <input data-testid={`po-days-${o.id}`} type="number" value={o.warranty_days ?? 0} onChange={(e) => upd({ warranty_days: Number(e.target.value) })} className="w-full rounded-lg border border-[#EAEAEA] px-2 py-1 text-[13px]" title="Garantie dagen" />
+                        <input value={o.warranty_label || ""} onChange={(e) => upd({ warranty_label: e.target.value })} className="w-full rounded-lg border border-[#EAEAEA] px-2 py-1 text-[13px]" title="Garantie label" />
+                        <div className="flex items-center gap-2">
+                          <label className="inline-flex items-center gap-1 text-[12px] text-[#666666]">
+                            <input type="checkbox" data-testid={`po-enabled-${o.id}`} checked={!!o.enabled} onChange={(e) => upd({ enabled: e.target.checked })} className="accent-[#111111] h-4 w-4" /> Zichtbaar
+                          </label>
+                          <button data-testid={`po-save-${o.id}`} onClick={() => save(rows[idx])} disabled={saving} className="rounded-full bg-[#111111] text-white px-3 py-1 text-[12px]">Opslaan</button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
+            {rows.length === 0 && <div className="text-[14px] text-[#666666]">Nog geen onderdelen geconfigureerd voor dit toestel.</div>}
           </div>
           <div className="p-4 border-t border-[#EAEAEA] flex justify-end">
             <button onClick={onClose} className="rounded-full bg-[#111111] text-white px-5 py-2 text-[13px] font-medium inline-flex items-center gap-2">

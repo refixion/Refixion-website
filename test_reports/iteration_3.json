@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 3 (Refixion): 16/16 new iter-3 backend tests pass + 36/36 existing regressions (52 passed, 1 legacy price-override test skipped). Frontend E2E verified: new logo image (/brand/refixion-logo.png) in navbar, only Apple+Samsung brand cards on homepage, /garantie public page renders warranty groups (Gedekt/Niet gedekt) + general text, /admin/warranties shows 16 warranty rows + general text editor, /admin/devices Prijzen modal displays part_options grouped by repair (3 rows for screen: Origineel/High Quality/Werkend, each with editable price/days/label/Zichtbaar/Opslaan). Booking wizard: screen repair path — after selecting rep-screen the same step 3 auto-swaps to 'Kies onderdeel-kwaliteit.' with 3 quality cards; selecting 'Origineel scherm (OEM)' → step 4 methods → date/time → customer → step 7 confirmation showing Onderdeel='Origineel scherm (OEM)', Garantie='12 maanden garantie', Prijs=€90.00; submit produced RFX-544DB7 success page. Single-option repair (Batterij) skips the quality substep entirely (title stays 'Wat willen we repareren?' and Next jumps to step 4).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "startup seed_all()", "issue": "seed_all() only removes deprecated brand-google/brand-oneplus devices; it does NOT purge stale samsung device IDs from iteration-1 (dev-s24u, dev-s24p, dev-s24, dev-s23u, dev-s23, dev-s22, dev-znf5, dev-zfl5). This caused GET /api/devices?brand_id=brand-samsung to return 33 instead of the spec'd 25. Cleaned up manually via admin API for this session, but the seed logic should either delete devices whose IDs are not in the current DEVICES catalog under brands ['brand-samsung'], OR clear the whole samsung device collection and re-upsert on every startup. Same risk exists for apple if the seed catalog ever shrinks."}
+    ]
+  },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/iter3_results.xml"
+  ],
+  "action_items": [
+    "Update seed_all() in /app/backend/server.py to also delete samsung (and apple) device documents whose IDs are not present in the current seed DEVICES catalog — otherwise catalog reductions between iterations leave orphan records visible on the public site.",
+    "Consider dropping the deprecated /api/admin/price-overrides endpoints from server.py — price is now on part_options and the legacy endpoint is no longer wired to /repairs response, causing confusion (regression test skipped)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 968 lines — well past the 700-line guideline. Split into routers: /api/admin/*, /api/public/*, /api/booking/*.",
+    "PUT /api/admin/part-options/{id} and PUT /api/admin/warranties/{id} require the *full* Pydantic model (PartOptionIn/WarrantyIn) — so admin UI that wants to toggle just `enabled` must resend every field. Consider PATCH semantics or a partial-update variant.",
+    "seed_all() uses $setOnInsert for part_options, warranties, repair_methods, workshop, faqs, reviews — good for preserving admin edits, but combined with lack of catalog-diff cleanup (see minor issue above) means removed items linger forever. A per-collection cleanup for orphans (IDs no longer in seed catalog) would make iterations deterministic.",
+    "BookingPage step 3 renders TWO different views under the same `step === 3` block (repairs list OR quality substep) — works but is subtle. Consider promoting the quality substep to step 3b explicitly, and reflecting it in the progress indicator (currently 'Stap 3 van 7' both before and after selecting the repair)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3.py (new — 16 tests)",
+    "/app/backend/tests/backend_test.py (iter-3 count updates: brands 2, apple 33, repairs 15; booking payload now uses rep-battery to work with new part_option requirement; legacy TestPriceOverrides marked skip)"
+  ],
+  "success_rate": {"backend": "100% (52/52 executed, 1 skipped)", "frontend": "100% on all tested flows (logo, brands section, /garantie, /admin/warranties, /admin/devices Prijzen modal, screen wizard end-to-end incl. success page, single-option wizard)"},
+  "test_credentials": "admin@refixion.nl / Refixion2026!",
+  "seed_data_creation": "Cleaned 8 stale samsung devices (dev-s24u,dev-s24p,dev-s24,dev-s23u,dev-s23,dev-s22,dev-znf5,dev-zfl5) via DELETE /api/admin/devices/{id} so iter-3 count becomes 25. Otherwise all mutations restored (part-option price, part-option enabled). Bookings created during E2E remain (RFX-544DB7 etc.) — they carry first_name=TEST and can be purged by admin.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run backend tests: `pytest -n 0 /app/backend/tests/` (52 pass, 1 skip). Test file for iter-3 is /app/backend/tests/test_iteration3.py. Booking wizard step 3 has TWO renders: repair-list (default) and quality substep (when state.repair && part_options.length > 1) — selecting a multi-option repair AUTO-swaps to the quality view without needing a Next click; only the quality view's Next advances to step 4. For single-option repairs (rep-battery, rep-speaker etc.), no substep — Next goes directly to step 4. Booking localStorage key = 'refixion_booking_v1'. Wizard testids: wizard-brand-{slug}, wizard-device-{id}, wizard-repair-{id}, wizard-quality-{original|high_quality|working}, wizard-method-{slug}, wizard-date-{iso}, wizard-time-{HH:MM}, wizard-input-{field}, wizard-consent, wizard-next-btn. Admin warranty testids: warranty-general, warranty-general-save, war-label-{id}, war-days-{id}, war-save-{id}, warranty-add. Admin devices Prijzen testids: po-price-{poId}, po-days-{poId}, po-enabled-{poId}, po-save-{poId}. Admin token stored in localStorage['refixion_token'].",
+  "rca_of_the_issue": "Stale samsung devices bug: seed_data.py was updated to remove Google+OnePlus brands AND to shrink the samsung catalog (from ~30 in iter-1 to 25 phones in iter-3). server.py's seed_all() correctly deletes google/oneplus documents but has no logic to remove samsung device IDs that no longer exist in the new seed. Since the collection uses upsert-by-id, iter-1 samsung IDs like 'dev-s24u' remain in the DB and are returned by GET /api/devices?brand_id=brand-samsung. Mitigation applied: manually deleted via /api/admin/devices/{id}. Permanent fix: in seed_all() after upserting DEVICES, run `await db.devices.delete_many({'brand_id': {'$in': ['brand-apple','brand-samsung']}, 'id': {'$nin': [d['id'] for d in DEVICES]}})`."
+}

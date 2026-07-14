@@ -91,5 +91,6 @@ SEO_DEFAULTS = [
     {"path": "/faq", "title": "FAQ — Refixion", "description": "Antwoorden op veelgestelde vragen.", "og_title": "FAQ — Refixion", "og_description": "", "og_image": ""},
     {"path": "/reviews", "title": "Reviews — Refixion", "description": "Wat onze klanten zeggen.", "og_title": "Reviews — Refixion", "og_description": "", "og_image": ""},
     {"path": "/contact", "title": "Contact — Refixion", "description": "Neem contact op met Refixion.", "og_title": "Contact — Refixion", "og_description": "", "og_image": ""},
+    {"path": "/garantie", "title": "Garantie — Refixion", "description": "Duidelijke garantie op iedere reparatie. Bekijk wat gedekt is per reparatie.", "og_title": "Garantie — Refixion", "og_description": "", "og_image": ""},
     {"path": "/booking", "title": "Boek een reparatie — Refixion", "description": "Boek in enkele stappen jouw premium smartphone reparatie.", "og_title": "Boek een reparatie", "og_description": "", "og_image": ""},
 ]

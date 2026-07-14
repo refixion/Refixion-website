@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, Star, ChevronDown } from "lucide-react";
-import { SiApple, SiSamsung, SiGoogle, SiOneplus } from "react-icons/si";
+import { SiApple, SiSamsung } from "react-icons/si";
 import { FadeUp, Section, SectionEyebrow, SectionHeading } from "../components/site/primitives";
 import { api } from "../lib/api";
 import { useSiteContent } from "../lib/useSiteContent";
@@ -183,12 +183,10 @@ export default function HomePage() {
           <SectionEyebrow>{brands_section.eyebrow}</SectionEyebrow>
           <SectionHeading>{brands_section.heading}</SectionHeading>
         </FadeUp>
-        <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
             { icon: SiApple, name: "Apple", slug: "apple", desc: "iPhone" },
             { icon: SiSamsung, name: "Samsung", slug: "samsung", desc: "Galaxy" },
-            { icon: SiGoogle, name: "Google", slug: "google", desc: "Pixel" },
-            { icon: SiOneplus, name: "OnePlus", slug: "oneplus", desc: "OnePlus" },
           ].map((b, i) => {
             const Icon = b.icon;
             return (

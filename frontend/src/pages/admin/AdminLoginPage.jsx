@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { api, formatApiErrorDetail } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { Loader2 } from "lucide-react";
+import { LogoFull } from "../../components/site/Logo";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
@@ -31,10 +32,7 @@ export default function AdminLoginPage() {
       <div className="container-page py-20">
         <div className="max-w-sm mx-auto">
           <div className="flex items-center gap-2 justify-center mb-10">
-            <div className="h-8 w-8 rounded-lg bg-[#111111] flex items-center justify-center">
-              <span className="text-white text-[14px] font-semibold">R</span>
-            </div>
-            <span className="text-[18px] font-semibold tracking-tight">Refixion Admin</span>
+            <LogoFull height={32} />
           </div>
           <h1 className="text-3xl tracking-tight font-semibold text-[#111111] text-center">Inloggen.</h1>
           <p className="mt-3 text-[14px] text-[#666666] text-center">Toegang tot het beheerpaneel.</p>

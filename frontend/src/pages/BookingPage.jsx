@@ -3,12 +3,14 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ArrowRight, Check, Store, Package, Truck, Briefcase, ChevronDown, Info } from "lucide-react";
 import * as Lucide from "lucide-react";
-import { SiApple, SiSamsung, SiGoogle, SiOneplus } from "react-icons/si";
+import { SiApple, SiSamsung } from "react-icons/si";
 import { toast } from "sonner";
 import { api, formatApiErrorDetail } from "../lib/api";
 import { useBooking } from "../lib/booking-store";
+import { LogoFull } from "../components/site/Logo";
+import { resolveIcon } from "../lib/icons";
 
-const BRAND_ICONS = { apple: SiApple, samsung: SiSamsung, google: SiGoogle, oneplus: SiOneplus };
+const BRAND_ICONS = { apple: SiApple, samsung: SiSamsung };
 const METHOD_ICONS = { store: Store, package: Package, truck: Truck, briefcase: Briefcase };
 
 function StepIndicator({ step, total = 7 }) {
@@ -136,7 +138,12 @@ export default function BookingPage() {
     switch (step) {
       case 1: return !!state.brand;
       case 2: return !!state.device;
-      case 3: return !!state.repair;
+      case 3: {
+        if (!state.repair) return false;
+        const opts = state.repair?.part_options || [];
+        if (opts.length <= 1) return true;
+        return !!state.part_option;
+      }
       case 4: return !!state.method;
       case 5: return !!state.date && !!state.time;
       case 6: {
@@ -155,6 +162,7 @@ export default function BookingPage() {
         brand_id: state.brand.id,
         device_id: state.device.id,
         repair_id: state.repair.id,
+        part_option_id: state.part_option?.id || (state.repair.part_options?.length === 1 ? state.repair.part_options[0].id : null),
         method_id: state.method.id,
         appointment_date: state.date,
         appointment_time: state.time,
@@ -185,10 +193,7 @@ export default function BookingPage() {
       <div className="container-page py-10">
         <div className="flex items-center justify-between mb-8">
           <Link to="/" data-testid="wizard-home-link" className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-[#111111] flex items-center justify-center">
-              <span className="text-white text-[13px] font-semibold">R</span>
-            </div>
-            <span className="text-[16px] font-semibold tracking-tight">Refixion</span>
+            <LogoFull height={24} />
           </Link>
           <button data-testid="wizard-cancel-btn" onClick={() => { if (window.confirm("Boeking annuleren?")) { reset(); navigate("/"); } }} className="text-[13px] text-[#666666] hover:text-[#111111]">Annuleren</button>
         </div>
@@ -251,39 +256,94 @@ export default function BookingPage() {
           </StepShell>
         )}
 
-        {/* Step 3: Repair */}
-        {step === 3 && (
-          <StepShell title="Wat willen we repareren?" subtitle={`${state.brand?.name} ${state.device?.name}`} onBack={() => setStep(2)} onNext={() => setStep(4)} canNext={canNext}>
-            <div className="grid md:grid-cols-2 gap-3">
-              {repairs.map((r) => {
-                const iconName = (r.icon || "smartphone").split("-").map((s, i) => i === 0 ? s : s[0].toUpperCase() + s.slice(1)).join("");
-                const IconComp = Lucide[iconName[0].toUpperCase() + iconName.slice(1)] || Lucide.Smartphone;
-                const selected = state.repair?.id === r.id;
-                return (
-                  <motion.button
-                    key={r.id}
-                    data-testid={`wizard-repair-${r.id}`}
-                    whileHover={{ y: -2 }}
-                    onClick={() => update({ repair: r })}
-                    className={`text-left rounded-2xl border p-6 bg-white transition-all ${selected ? "border-[#111111] shadow-[0_8px_30px_rgb(0,0,0,0.08)]" : "border-[#EAEAEA] hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)]"}`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <IconComp className="h-5 w-5 text-[#111111]" strokeWidth={1.5} />
-                      <div className="text-[16px] font-semibold text-[#111111]">€{r.price_eur}</div>
-                    </div>
-                    <div className="mt-5 text-[16px] font-medium text-[#111111]">{r.name}</div>
-                    <div className="mt-1 text-[13px] text-[#666666] leading-relaxed">{r.description}</div>
-                    <div className="mt-4 flex items-center gap-4 text-[12px] text-[#666666]">
-                      <span>~ {r.duration_minutes} min</span>
-                      <span>·</span>
-                      <span>{r.warranty}</span>
-                    </div>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </StepShell>
-        )}
+        {/* Step 3: Repair (+ conditional Quality substep) */}
+        {step === 3 && (() => {
+          const opts = state.repair?.part_options || [];
+          const needsQualityView = state.repair && opts.length > 1;
+          if (needsQualityView) {
+            return (
+              <StepShell
+                title="Kies onderdeel-kwaliteit."
+                subtitle={`${state.repair.name} · ${state.brand?.name} ${state.device?.name}`}
+                onBack={() => update({ repair: null, part_option: null })}
+                onNext={() => setStep(4)}
+                canNext={!!state.part_option}
+              >
+                <div className="grid md:grid-cols-3 gap-3">
+                  {opts.map((o) => {
+                    const selected = state.part_option?.id === o.id;
+                    return (
+                      <motion.button
+                        key={o.id}
+                        data-testid={`wizard-quality-${o.quality_key}`}
+                        whileHover={{ y: -2 }}
+                        onClick={() => update({ part_option: o })}
+                        className={`text-left rounded-2xl border p-6 bg-white transition-all h-full ${selected ? "border-[#111111] shadow-[0_8px_30px_rgb(0,0,0,0.08)]" : "border-[#EAEAEA] hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)]"}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="text-[15px] font-medium text-[#111111]">{o.quality_label}</div>
+                          <div className="text-[16px] font-semibold text-[#111111] whitespace-nowrap">{o.on_request || o.price_eur == null ? "Op aanvraag" : `€${o.price_eur}`}</div>
+                        </div>
+                        <div className="mt-2 text-[13px] text-[#666666] leading-relaxed">{o.description}</div>
+                        <div className="mt-4 inline-flex items-center gap-1 text-[12px] text-[#111111] bg-[#FAFAFA] border border-[#EAEAEA] rounded-full px-2.5 py-1">
+                          <Lucide.ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.5} /> {o.warranty_label}
+                        </div>
+                        {selected && <div className="mt-3 inline-flex items-center gap-1 text-[12px] text-[#111111]"><Check className="h-3.5 w-3.5" strokeWidth={2} />Geselecteerd</div>}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+                <div className="mt-6">
+                  <button data-testid="wizard-change-repair" onClick={() => update({ repair: null, part_option: null })} className="text-[13px] text-[#666666] hover:text-[#111111] underline underline-offset-4">← Kies een andere reparatie</button>
+                </div>
+              </StepShell>
+            );
+          }
+          return (
+            <StepShell title="Wat willen we repareren?" subtitle={`${state.brand?.name} ${state.device?.name}`} onBack={() => setStep(2)} onNext={() => setStep(4)} canNext={canNext}>
+              <div className="grid md:grid-cols-2 gap-3">
+                {repairs.map((r) => {
+                  const IconComp = resolveIcon(r.icon);
+                  const selected = state.repair?.id === r.id;
+                  const opts = r.part_options || [];
+                  const priceLabel = r.any_on_request && r.from_price == null
+                    ? "Op aanvraag"
+                    : opts.length > 1
+                      ? `vanaf €${r.from_price}`
+                      : `€${r.from_price}`;
+                  const singleWarranty = opts.length === 1 ? opts[0].warranty_label : (opts.length > 1 ? "Meerdere garanties" : "");
+                  return (
+                    <motion.button
+                      key={r.id}
+                      data-testid={`wizard-repair-${r.id}`}
+                      whileHover={{ y: -2 }}
+                      onClick={() => {
+                        if (opts.length === 1) {
+                          update({ repair: r, part_option: opts[0] });
+                        } else {
+                          update({ repair: r, part_option: null });
+                        }
+                      }}
+                      className={`text-left rounded-2xl border p-6 bg-white transition-all ${selected ? "border-[#111111] shadow-[0_8px_30px_rgb(0,0,0,0.08)]" : "border-[#EAEAEA] hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)]"}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <IconComp className="h-5 w-5 text-[#111111]" strokeWidth={1.5} />
+                        <div className="text-[16px] font-semibold text-[#111111] whitespace-nowrap">{priceLabel}</div>
+                      </div>
+                      <div className="mt-5 text-[16px] font-medium text-[#111111]">{r.name}</div>
+                      <div className="mt-1 text-[13px] text-[#666666] leading-relaxed">{r.description}</div>
+                      <div className="mt-4 flex items-center gap-3 text-[12px] text-[#666666] flex-wrap">
+                        <span>~ {r.duration_minutes} min</span>
+                        {singleWarranty && <><span>·</span><span>{singleWarranty}</span></>}
+                        {opts.length > 1 && <><span>·</span><span className="text-[#111111]">{opts.length} kwaliteiten →</span></>}
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </StepShell>
+          );
+        })()}
 
         {/* Step 4: Method */}
         {step === 4 && (
@@ -425,11 +485,17 @@ export default function BookingPage() {
                 ["Merk", state.brand?.name],
                 ["Toestel", state.device?.name],
                 ["Reparatie", state.repair?.name],
+                ["Onderdeel", state.part_option?.quality_label || (state.repair?.part_options?.[0]?.quality_label || "Standaard")],
+                ["Garantie", state.part_option?.warranty_label || state.repair?.part_options?.[0]?.warranty_label || ""],
                 ["Methode", state.method?.title],
                 ["Datum", state.date],
                 ["Tijd", state.time],
                 ["Geschatte duur", `${state.repair?.duration_minutes} min`],
-                ["Prijs", `€${(Number(state.repair?.price_eur || 0) + Number(state.method?.additional_price || 0)).toFixed(2)}`],
+                ["Prijs", (() => {
+                  const po = state.part_option || state.repair?.part_options?.[0];
+                  if (!po || po.on_request || po.price_eur == null) return "Op aanvraag";
+                  return `€${(Number(po.price_eur) + Number(state.method?.additional_price || 0)).toFixed(2)}`;
+                })()],
               ].map(([k, v]) => (
                 <div key={k} className="flex items-center justify-between text-[14px] border-b border-[#EAEAEA] pb-3 last:border-0 last:pb-0">
                   <span className="text-[#666666]">{k}</span>

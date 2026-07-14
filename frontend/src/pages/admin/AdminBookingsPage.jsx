@@ -76,7 +76,8 @@ export default function AdminBookingsPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="text-[#111111]">{r.brand_name} {r.device_name}</div>
-                  <div className="text-[#666666] text-[12px]">{r.repair_name} · {r.method_title}</div>
+                  <div className="text-[#666666] text-[12px]">{r.repair_name}{r.part_quality_label ? ` · ${r.part_quality_label}` : ""} · {r.method_title}</div>
+                  {r.warranty_label && <div className="text-[#666666] text-[11px] mt-0.5">Garantie: {r.warranty_label}</div>}
                 </td>
                 <td className="px-4 py-3 text-[#111111]">{r.appointment_date}<br /><span className="text-[#666666] text-[12px]">{r.appointment_time}</span></td>
                 <td className="px-4 py-3 text-[#111111]">€{Number(r.total_price).toFixed(2)}</td>
