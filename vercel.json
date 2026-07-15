@@ -1,13 +1,10 @@
 {
   "buildCommand": "npm run build --prefix frontend",
   "installCommand": "npm install --prefix frontend && pip install -r backend/requirements.txt",
-  "functions": {
-    "api/index.py": {
-      "runtime": "python@3.11"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api/index.py"
     }
+  ]
+}
