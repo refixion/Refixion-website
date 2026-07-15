@@ -10,16 +10,16 @@ export default function AdminBookingsPage() {
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
-  const load = () => {
-    const p = new URLSearchParams();
-    if (status) p.set("status", status);
-    if (q) p.set("q", q);
-    api.get(`/admin/bookings?${p.toString()}`).then((r) => setRows(r.data));
-  };
+const load = useCallback(() => {
+  const p = new URLSearchParams();
+  if (status) p.set("status", status);
+  if (q) p.set("q", q);
+  api.get(`/admin/bookings?${p.toString()}`).then((r) => setRows(r.data));
+}, [status, q]);
 // eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(() => {
   load();
-}, [status, q]);
+}, [load]);
   const changeStatus = async (id, s) => {
     await api.patch(`/admin/bookings/${id}`, { status: s });
     toast.success("Status bijgewerkt");
