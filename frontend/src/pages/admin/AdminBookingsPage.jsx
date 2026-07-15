@@ -9,17 +9,19 @@ const STATUS_LABEL = { pending: "In afwachting", confirmed: "Bevestigd", in_prog
 export default function AdminBookingsPage() {
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("");
-  const [q, setQ] = 
-   const load = useCallback(() => {
-  const p = new URLSearchParams();
-  if (status) p.set("status", status);
-  if (q) p.set("q", q);
-  api.get(`/admin/bookings?${p.toString()}`).then((r) => setRows(r.data));
-}, [status, q]);
+  const [q, setQ] = useState("");
 
-useEffect(() => {
-  load();
-}, [load]); 
+  const load = useCallback(() => {
+    const p = new URLSearchParams();
+    if (status) p.set("status", status);
+    if (q) p.set("q", q);
+
+    api.get(`/admin/bookings?${p.toString()}`).then((r) => setRows(r.data));
+  }, [status, q]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
   const changeStatus = async (id, s) => {
     await api.patch(`/admin/bookings/${id}`, { status: s });
     toast.success("Status bijgewerkt");
