@@ -1,6 +1,11 @@
-import sys
-import os
+"""Vercel serverless function entry point."""
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../backend")))
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+BACKEND_DIR = ROOT_DIR / "backend"
+
+sys.path.insert(0, str(BACKEND_DIR))
 
 from server import app
