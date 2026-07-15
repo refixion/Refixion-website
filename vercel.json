@@ -1,22 +1,15 @@
 {
-  "version": 2,
   "buildCommand": "npm run build --prefix frontend",
-  "devCommand": "npm run dev --prefix frontend",
   "installCommand": "npm install --prefix frontend && pip install -r backend/requirements.txt",
-  
-
-  "routes": [
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.11"
+    }
+  },
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "api/index.py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "frontend/build/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "frontend/build/index.html"
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
     }
   ]
 }
