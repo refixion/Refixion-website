@@ -1,0 +1,20 @@
+{
+  "name": "refixion-website",
+  "version": "1.0.0",
+  "description": "Refixion repair booking platform",
+  "private": true,
+  "scripts": {
+    "start": "cd frontend && npm start",
+    "build": "cd frontend && npm run build",
+    "test": "cd frontend && npm test",
+    "dev": "cd frontend && npm start",
+    "install-all": "npm install && cd frontend && npm install && cd ../backend && pip install -r requirements.txt"
+  },
+  "workspaces": [
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

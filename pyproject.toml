@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "refixion-backend"
+version = "1.0.0"
+description = "Refixion repair booking API"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Refixion Team", email = "info@refixion.com"}
+]
+
+dependencies = [
+    "fastapi==0.110.1",
+    "uvicorn[standard]==0.25.0",
+    "motor==3.3.1",
+    "pydantic==2.13.4",
+    "pydantic[email]==2.13.4",
+    "python-dotenv==1.2.2",
+    "python-jose[cryptography]==3.5.0",
+    "passlib[bcrypt]==1.7.4",
+    "bcrypt==4.1.3",
+    "aiosmtplib==3.0.2",
+    "pyjwt==2.13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "pytest-xdist==3.8.0",
+    "black==26.5.1",
+    "flake8==7.3.0",
+]
+
+[tool.setuptools]
+packages = ["backend"]
+
+[tool.black]
+line-length = 120
+target-version = ['py311']
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]

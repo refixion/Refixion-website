@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build --prefix frontend",
+  "devCommand": "npm run start --prefix frontend",
+  "installCommand": "npm install --prefix frontend && pip install -r backend/requirements.txt",
+  "env": {
+    "REACT_APP_API_URL": "@react_app_api_url"
+  },
+  "functions": {
+    "backend/server.py": {
+      "runtime": "python3.11",
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "backend/server.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "frontend/build/$1"
+    }
+  ],
+  "builds": [
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "frontend/build"
+      }
+    },
+    {
+      "src": "backend/server.py",
+      "use": "@vercel/python"
+    }
+  ]
+}
