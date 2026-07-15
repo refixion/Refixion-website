@@ -38,8 +38,6 @@ dev = [
 [tool.setuptools]
 packages = ["backend"]
 
-[tool.vercel]
-entrypoint = "backend.server:app"
 
 [tool.black]
 line-length = 120
