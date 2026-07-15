@@ -16,8 +16,10 @@ export default function AdminBookingsPage() {
     if (q) p.set("q", q);
     api.get(`/admin/bookings?${p.toString()}`).then((r) => setRows(r.data));
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [status, q]);
-
+// eslint-disable-next-line react-hooks/exhaustive-deps
+useEffect(() => {
+  load();
+}, [status, q]);
   const changeStatus = async (id, s) => {
     await api.patch(`/admin/bookings/${id}`, { status: s });
     toast.success("Status bijgewerkt");
