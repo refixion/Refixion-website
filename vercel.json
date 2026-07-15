@@ -3,9 +3,7 @@
   "buildCommand": "npm run build --prefix frontend",
   "devCommand": "npm run dev --prefix frontend",
   "installCommand": "npm install --prefix frontend && pip install -r backend/requirements.txt",
-  "env": {
-    "REACT_APP_BACKEND_URL": "@react_app_backend_url"
-  },
+  
   "functions": {
     "api/[...].py": {
       "runtime": "python3.11",
