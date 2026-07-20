@@ -90,9 +90,11 @@ api = APIRouter(prefix="/api")
 
 @app.on_event("startup")
 async def on_startup():
-    async with AsyncSessionLocal() as session:
-        await seed_all(session)
-
+    try:
+        async with AsyncSessionLocal() as session:
+            await seed_all(session)
+    except Exception as e:
+        logger.exception("STARTUP ERROR: %s", e)
 
 @app.on_event("shutdown")
 async def on_shutdown():
