@@ -1,5 +1,4 @@
 {
-  "version": 2,
   "buildCommand": "npm run build --prefix frontend",
   "installCommand": "npm install --prefix frontend && pip install -r backend/requirements.txt",
   "outputDirectory": "frontend/build",
