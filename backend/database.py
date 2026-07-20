@@ -34,7 +34,10 @@ DATABASE_URL = _normalize_database_url(os.environ["DATABASE_URL"])
 engine = create_async_engine(
     DATABASE_URL,
     poolclass=NullPool,
-    connect_args={"statement_cache_size": 0},
+    connect_args={
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0
+    },
 )
 
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
