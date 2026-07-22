@@ -4,6 +4,7 @@ Migrated from MongoDB/Motor to SQLAlchemy (async) + asyncpg. Every endpoint keep
 exact same path, request body, and response body as the original Mongo-backed version.
 See MIGRATION_NOTES.md for a full rundown of the conversion decisions.
 """
+print("🔥 REFIXION SERVER LOADED - NEW VERSION")
 from dotenv import load_dotenv
 from pathlib import Path
 
