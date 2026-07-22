@@ -34,7 +34,9 @@ export default function HomePage() {
 
   if (!content) return <div className="min-h-[60vh] bg-white" />;
 
-  const { hero, trust, how_it_works, brands_section, why, faq_section, cta } = content;
+const { hero, trust, how_it_works, brands_section, why, faq_section, cta } = content;
+if (!hero) return <div className="min-h-[60vh] bg-white" />;
+
 
   const trustCardValue = (card) => {
     if (card.value_type === "number") return { numeric: Number(card.value) || 0, display: card.value, isNumber: true };
