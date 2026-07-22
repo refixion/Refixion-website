@@ -4,6 +4,7 @@ Replaces the old Motor/AsyncIOMotorClient setup. Reads DATABASE_URL from the
 environment (see .env.example) instead of MONGO_URL / DB_NAME.
 """
 import os
+import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -36,7 +37,8 @@ engine = create_async_engine(
     poolclass=NullPool,
     connect_args={
         "statement_cache_size": 0,
-        "prepared_statement_cache_size": 0
+        "prepared_statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4()}__",
     },
 )
 
