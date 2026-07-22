@@ -91,10 +91,7 @@ api = APIRouter(prefix="/api")
 
 @app.on_event("startup")
 async def on_startup():
-    try:
-        async with AsyncSessionLocal() as session:
-    except Exception as e:
-        logger.exception("STARTUP ERROR: %s", e)
+    print("Refixion server loaded")
 
 @app.on_event("shutdown")
 async def on_shutdown():
