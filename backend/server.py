@@ -12,6 +12,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 import logging
+from shop_models import Product, ProductImage, ProductOption
 import os
 import secrets as _secrets
 from datetime import date, datetime, time, timedelta
