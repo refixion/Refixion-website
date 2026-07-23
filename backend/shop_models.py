@@ -9,11 +9,7 @@ from database import Base
 class Product(Base):
     __tablename__ = "products"
 
-    id: Mapped[str] = mapped_column(
-        String,
-        primary_key=True,
-        default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[str] = mapped_column(String, primary_key=True)
 
     title: Mapped[str] = mapped_column(String, nullable=False)
     slug: Mapped[str] = mapped_column(String, nullable=False, unique=True)
@@ -24,39 +20,25 @@ class Product(Base):
     storage: Mapped[str] = mapped_column(String, nullable=False)
     color: Mapped[str] = mapped_column(String, nullable=False)
 
-    condition: Mapped[str] = mapped_column(String, nullable=False)
     battery_health: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    description: Mapped[str] = mapped_column(Text, default="")
+    condition: Mapped[str] = mapped_column(String, nullable=False)
+
+    description: Mapped[str] = mapped_column(Text)
 
     price: Mapped[float] = mapped_column(Float, nullable=False)
 
-    stock: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=1
-    )
+    stock: Mapped[int] = mapped_column(Integer, default=1)
 
-    featured: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False
-    )
+    warranty_months: Mapped[int] = mapped_column(Integer, default=12)
 
-    active: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False
-    )
+    images: Mapped[list] = mapped_column(JSONB)
 
+    featured: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    images = relationship(
-        "ProductImage",
-        cascade="all, delete-orphan"
-    )
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    options = relationship(
-        "ProductOption",
-        cascade="all, delete-orphan"
-    )
+    created_at: Mapped[str] = mapped_column(Text)
 
 
 class ProductImage(Base):
