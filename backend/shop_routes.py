@@ -4,8 +4,12 @@ from sqlalchemy import select
 
 from database import get_session
 from shop_models import Product
-
+print("🔥 SHOP ROUTES LOADED")
 router = APIRouter(prefix="/api/shop", tags=["Shop"])
+
+@router.get("/test")
+async def test():
+    return {"working": True}
 
 @router.get("/products")
 async def get_products(
