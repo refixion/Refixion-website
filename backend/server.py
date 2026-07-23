@@ -15,7 +15,7 @@ import logging
 import shop_models
 from shop_routes import router as shop_router
 
-app.include_router(shop_router)
+
 import os
 import secrets as _secrets
 from datetime import date, datetime, time, timedelta
@@ -91,7 +91,7 @@ logger = logging.getLogger("refixion")
 
 app = FastAPI(title="Refixion API")
 api = APIRouter(prefix="/api")
-
+app.include_router(shop_router)
 
 @app.on_event("startup")
 async def on_startup():
