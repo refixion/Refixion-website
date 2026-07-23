@@ -339,41 +339,6 @@ class Booking(Base):
     ip: Mapped[str] = mapped_column(String, nullable=False, default="")
     user_agent: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
-# ------- products -------
-class Product(Base):
-    __tablename__ = "products"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-
-    title: Mapped[str] = mapped_column(String, nullable=False)
-    slug: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-
-    brand: Mapped[str] = mapped_column(String, nullable=False)
-    model: Mapped[str] = mapped_column(String, nullable=False)
-
-    storage: Mapped[str] = mapped_column(String, nullable=False)
-    color: Mapped[str] = mapped_column(String, nullable=False)
-
-    battery_health: Mapped[int] = mapped_column(Integer, nullable=False)
-
-    condition: Mapped[str] = mapped_column(String, nullable=False)
-
-    description: Mapped[str] = mapped_column(Text, nullable=False)
-
-    price: Mapped[float] = mapped_column(Float, nullable=False)
-
-    stock: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-
-    warranty_months: Mapped[int] = mapped_column(Integer, nullable=False, default=12)
-
-    images: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
-
-    featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
-    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-
-    created_at: Mapped[str] = mapped_column(Text, nullable=False)
-
 
 # ------- orders -------
 class Order(Base):
