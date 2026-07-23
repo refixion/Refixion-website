@@ -13,6 +13,9 @@ load_dotenv(ROOT_DIR / ".env")
 
 import logging
 import shop_models
+from shop_routes import router as shop_router
+
+app.include_router(shop_router)
 import os
 import secrets as _secrets
 from datetime import date, datetime, time, timedelta
