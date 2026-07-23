@@ -339,7 +339,90 @@ class Booking(Base):
     ip: Mapped[str] = mapped_column(String, nullable=False, default="")
     user_agent: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
+# ------- products -------
+class Product(Base):
+    __tablename__ = "products"
 
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    slug: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+
+    brand: Mapped[str] = mapped_column(String, nullable=False)
+    model: Mapped[str] = mapped_column(String, nullable=False)
+
+    storage: Mapped[str] = mapped_column(String, nullable=False)
+    color: Mapped[str] = mapped_column(String, nullable=False)
+
+    battery_health: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    condition: Mapped[str] = mapped_column(String, nullable=False)
+
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+
+    stock: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    warranty_months: Mapped[int] = mapped_column(Integer, nullable=False, default=12)
+
+    images: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    created_at: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+# ------- orders -------
+class Order(Base):
+    __tablename__ = "orders"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    customer_name: Mapped[str] = mapped_column(String, nullable=False)
+
+    email: Mapped[str] = mapped_column(String, nullable=False)
+
+    phone: Mapped[str] = mapped_column(String, nullable=False)
+
+    street: Mapped[str] = mapped_column(String, nullable=False)
+
+    house_number: Mapped[str] = mapped_column(String, nullable=False)
+
+    postal_code: Mapped[str] = mapped_column(String, nullable=False)
+
+    city: Mapped[str] = mapped_column(String, nullable=False)
+
+    total: Mapped[float] = mapped_column(Float, nullable=False)
+
+    payment_status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+
+    order_status: Mapped[str] = mapped_column(String, nullable=False, default="new")
+
+    created_at: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+# ------- order_items -------
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    order_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+
+    product_id: Mapped[str] = mapped_column(String, nullable=False)
+
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+
+    screenprotector: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    case: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    charger: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 # Composite index matching the actual hot-path query in GET /availability
 # (filter by appointment_date, excluding cancelled statuses).
 Index("ix_bookings_date_status", Booking.appointment_date, Booking.status)
