@@ -9,12 +9,18 @@ router = APIRouter(prefix="/shop", tags=["Shop"])
 
 
 @router.get("/products")
-def get_products(db: Session = Depends(get_db)):
-    return db.query(Product).all()
+async def get_products(
+    db: AsyncSession = Depends(get_session)
+):
+    result = await db.execute(select(Product))
+    return result.scalars().all()
 
 
 @router.post("/products")
-def create_product(product: dict, db: Session = Depends(get_db)):
+async def create_product(
+    product: dict,
+    db: AsyncSession = Depends(get_session)
+):
 
     new_product = Product(
         id=product.get("id"),
