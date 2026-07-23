@@ -42,19 +42,24 @@ async def create_product(
         created_at="now"
     )
 
-    db.add(new_product)
-    db.commit()
-    db.refresh(new_product)
+db.add(new_product)
+await db.commit()
+await db.refresh(new_product)
 
     return new_product
 
 
 @router.delete("/products/{product_id}")
-def delete_product(product_id: str, db: Session = Depends(get_db)):
+async def delete_product(
+    product_id: str,
+    db: AsyncSession = Depends(get_session)
+):
 
-    product = db.query(Product).filter(
-        Product.id == product_id
-    ).first()
+result = await db.execute(
+    select(Product).where(Product.id == product_id)
+)
+
+product = result.scalar_one_or_none()
 
     if not product:
         raise HTTPException(404, "Product not found")
