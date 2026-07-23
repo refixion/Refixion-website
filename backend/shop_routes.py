@@ -42,9 +42,9 @@ async def create_product(
         created_at="now"
     )
 
-db.add(new_product)
-await db.commit()
-await db.refresh(new_product)
+    db.add(new_product)
+    await db.commit()
+    await db.refresh(new_product)
 
     return new_product
 
@@ -55,7 +55,7 @@ async def delete_product(
     db: AsyncSession = Depends(get_session)
 ):
 
-result = await db.execute(
+    result = await db.execute(
     select(Product).where(Product.id == product_id)
 )
 
