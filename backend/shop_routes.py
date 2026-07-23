@@ -10,20 +10,21 @@ router = APIRouter(prefix="/shop", tags=["Shop"])
 
 @router.get("/products")
 async def get_products(
-    db: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session)
 ):
-    result = await db.execute(select(Product))
-    return result.scalars().all()
+    result = await session.execute(select(Product))
+    products = result.scalars().all()
+
+    return products
 
 
 @router.post("/products")
 async def create_product(
     product: dict,
-    db: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session)
 ):
 
     new_product = Product(
-        id=product.get("id"),
         title=product["title"],
         slug=product["slug"],
         brand=product["brand"],
@@ -42,9 +43,9 @@ async def create_product(
         created_at="now"
     )
 
-    db.add(new_product)
-    await db.commit()
-    await db.refresh(new_product)
+    session.add(new_product)
+    await session.commit()
+    await session.refresh(new_product)
 
     return new_product
 
@@ -52,19 +53,22 @@ async def create_product(
 @router.delete("/products/{product_id}")
 async def delete_product(
     product_id: str,
-    db: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session)
 ):
 
-    result = await db.execute(
-    select(Product).where(Product.id == product_id)
-)
+    result = await session.execute(
+        select(Product).where(Product.id == product_id)
+    )
 
-product = result.scalar_one_or_none()
+    product = result.scalar_one_or_none()
 
     if not product:
-        raise HTTPException(404, "Product not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found"
+        )
 
-    db.delete(product)
-    db.commit()
+    await session.delete(product)
+    await session.commit()
 
     return {"success": True}
