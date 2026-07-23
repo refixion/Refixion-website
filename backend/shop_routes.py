@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from database import get_db
+from database import get_session
 from shop_models import Product
 
 router = APIRouter(prefix="/shop", tags=["Shop"])
