@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import Boolean, Float, Integer, String, Text, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -9,7 +10,11 @@ from database import Base
 class Product(Base):
     __tablename__ = "products"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4())
+    )
 
     title: Mapped[str] = mapped_column(String, nullable=False)
     slug: Mapped[str] = mapped_column(String, nullable=False, unique=True)
@@ -24,21 +29,47 @@ class Product(Base):
 
     condition: Mapped[str] = mapped_column(String, nullable=False)
 
-    description: Mapped[str] = mapped_column(Text)
+    description: Mapped[str] = mapped_column(Text, default="")
 
     price: Mapped[float] = mapped_column(Float, nullable=False)
 
-    stock: Mapped[int] = mapped_column(Integer, default=1)
+    stock: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1
+    )
 
-    warranty_months: Mapped[int] = mapped_column(Integer, default=12)
+    warranty_months: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=12
+    )
 
-    images: Mapped[list] = mapped_column(JSONB)
+    images: Mapped[list] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list
+    )
 
-    featured: Mapped[bool] = mapped_column(Boolean, default=False)
+    featured: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False
+    )
 
-    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True
+    )
 
-    created_at: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(
+        Text,
+        nullable=False
+    )
+
+    options = relationship(
+        "ProductOption",
+        cascade="all, delete-orphan"
+    )
 
 
 class ProductImage(Base):
