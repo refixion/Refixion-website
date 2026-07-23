@@ -92,7 +92,7 @@ logger = logging.getLogger("refixion")
 app = FastAPI(title="Refixion API")
 api = APIRouter(prefix="/api")
 app.include_router(shop_router)
-
+app.include_router(api)
 @app.on_event("startup")
 async def on_startup():
     print("Refixion server loaded")
