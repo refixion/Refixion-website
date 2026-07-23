@@ -53,3 +53,6 @@ async def get_session() -> AsyncSession:
     """FastAPI dependency that yields a scoped AsyncSession per request."""
     async with AsyncSessionLocal() as session:
         yield session
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        yield session
