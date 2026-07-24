@@ -89,7 +89,12 @@ from utils import new_id, now_iso
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("refixion")
 
-app = FastAPI(title="Refixion API")
+app = FastAPI(
+    title="Refixion API",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+)
 api = APIRouter(prefix="/api")
 app.include_router(shop_router)
 
