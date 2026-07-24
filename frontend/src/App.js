@@ -23,7 +23,10 @@ import AdminDevicesPage from "@/pages/admin/AdminDevicesPage";
 import AdminContentPage from "@/pages/admin/AdminContentPage";
 import AdminSeoPage from "@/pages/admin/AdminSeoPage";
 import AdminWarrantiesPage from "@/pages/admin/AdminWarrantiesPage";
+import AdminShopPage from "@/pages/admin/AdminShopPage";
 import WarrantyPage from "@/pages/WarrantyPage";
+import ShopPage from "@/pages/ShopPage";
+import ShopDetailPage from "@/pages/ShopDetailPage";
 import { AuthProvider } from "@/lib/auth";
 
 function AnimatedRoutes() {
@@ -45,6 +48,8 @@ function AnimatedRoutes() {
             <Route path="/faq" element={<FAQPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/garantie" element={<WarrantyPage />} />
+            <Route path="/shop" element={<ShopPage />} />
+            <Route path="/shop/:slug" element={<ShopDetailPage />} />
             <Route path="/legal/privacy" element={<LegalPage kind="privacy" />} />
             <Route path="/legal/terms" element={<LegalPage kind="terms" />} />
             <Route path="/legal/cookies" element={<LegalPage kind="cookies" />} />
@@ -59,6 +64,7 @@ function AnimatedRoutes() {
             <Route path="devices" element={<AdminDevicesPage />} />
             <Route path="repair-methods" element={<AdminRepairMethodsPage />} />
             <Route path="warranties" element={<AdminWarrantiesPage />} />
+            <Route path="shop" element={<AdminShopPage />} />
             <Route path="content" element={<AdminContentPage />} />
             <Route path="seo" element={<AdminSeoPage />} />
             <Route path="workshop" element={<AdminWorkshopPage />} />

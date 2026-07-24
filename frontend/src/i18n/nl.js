@@ -1,5 +1,5 @@
 /**
- * Dutch translations — Refixion.
+ * Dutch translations -- Refixion.
  * Extend future locales (en.js, de.js, fr.js) with identical structure.
  *
  * NOTE: Dynamic content (hero/homepage/footer copy) lives in the DB via /api/site-content.
@@ -9,6 +9,7 @@ const nl = {
   nav: {
     home: "Home",
     repairs: "Reparaties",
+    shop: "Shop",
     pricing: "Prijzen",
     business: "Zakelijk",
     about: "Over ons",

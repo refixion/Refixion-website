@@ -8,6 +8,7 @@ import { LogoFull } from "./Logo";
 const NAV = [
   { to: "/", key: "nav.home" },
   { to: "/repairs", key: "nav.repairs" },
+  { to: "/shop", key: "nav.shop" },
   { to: "/pricing", key: "nav.pricing" },
   { to: "/garantie", key: "nav.warranty" },
   { to: "/faq", key: "nav.faq" },
