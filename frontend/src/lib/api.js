@@ -10,7 +10,7 @@ console.log("API URL:", API);
 
 export const api = axios.create({
   baseURL: API,
-  withCredentials: true,
+  withCredentials: false,
 });
 
 // Attach token if stored
