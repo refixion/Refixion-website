@@ -1,9 +1,11 @@
 {
   "version": 2,
+  "buildCommand": "npm run build --prefix frontend",
+  "installCommand": "npm install --prefix frontend && pip install -r backend/requirements.txt",
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "destination": "/api/index.py"
     },
     {
       "source": "/(.*)",
