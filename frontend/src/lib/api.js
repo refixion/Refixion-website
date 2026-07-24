@@ -1,7 +1,12 @@
 import axios from "axios";
 
-export const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+export const BACKEND_URL =
+  process.env.REACT_APP_BACKEND_URL || "https://refixion-website.vercel.app";
+
 export const API = `${BACKEND_URL}/api`;
+
+console.log("BACKEND URL:", BACKEND_URL);
+console.log("API URL:", API);
 
 export const api = axios.create({
   baseURL: API,
