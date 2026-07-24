@@ -93,6 +93,10 @@ app = FastAPI(title="Refixion API")
 api = APIRouter(prefix="/api")
 app.include_router(shop_router)
 
+@api.get("/debug-routes")
+async def debug_routes():
+    return [str(route.path) for route in app.routes]
+    
 @app.on_event("startup")
 async def on_startup():
     print("Refixion server loaded")
