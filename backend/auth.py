@@ -9,6 +9,10 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,7 +49,11 @@ def create_access_token(user_id: str, email: str) -> str:
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
-async def get_current_admin(request: Request, session: AsyncSession = Depends(get_session)) -> dict:
+async def get_current_admin(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    _creds: HTTPAuthorizationCredentials = Depends(bearer_scheme),  # alleen voor Swagger's slotje/Authorize-knop
+) -> dict:
     token = request.cookies.get("access_token")
     if not token:
         auth = request.headers.get("Authorization", "")
