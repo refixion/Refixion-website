@@ -8,7 +8,11 @@ export function useSiteContent() {
   const [content, setContent] = useState(cache);
 
   useEffect(() => {
-    const fn = (c) => setContent(c);
+    const fn = (c) => {
+      console.log("CONTENT LOADED:", c);
+      setContent(c);
+    };
+
     listeners.add(fn);
 
     if (!cache) {
@@ -18,8 +22,8 @@ export function useSiteContent() {
           cache = r.data;
           listeners.forEach((l) => l(cache));
         })
-        .catch((err) => {
-          console.error("SITE CONTENT ERROR:", err);
+        .catch((e) => {
+          console.error("SITE CONTENT ERROR:", e);
         });
     }
 
