@@ -25,6 +25,7 @@ function CountUp({ value, suffix = "" }) {
 
 export default function HomePage() {
   const content = useSiteContent();
+  console.log("REFIXION CONTENT:", content);
   const [faqs, setFaqs] = useState([]);
   const [openFaq, setOpenFaq] = useState(null);
 
@@ -34,7 +35,15 @@ export default function HomePage() {
 
   if (!content) return <div className="min-h-[60vh] bg-white" />;
 
-const { hero, trust, how_it_works, brands_section, why, faq_section, cta } = content;
+const {
+  hero = {},
+  trust = { cards: [] },
+  how_it_works = { steps: [] },
+  brands_section = {},
+  why = { items: [] },
+  faq_section = {},
+  cta = {}
+} = content;
 if (!hero) return <div className="min-h-[60vh] bg-white" />;
 
 
