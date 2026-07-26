@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, ChevronDown } from "lucide-react";
+import { ArrowRight, ChevronDown, BatteryMedium } from "lucide-react";
 import { SiApple, SiSamsung } from "react-icons/si";
 import { FadeUp, Section, SectionEyebrow, SectionHeading } from "../components/site/primitives";
 import { api } from "../lib/api";
@@ -25,25 +25,25 @@ function CountUp({ value, suffix = "" }) {
 
 export default function HomePage() {
   const content = useSiteContent();
-  console.log("REFIXION CONTENT:", content);
   const [faqs, setFaqs] = useState([]);
   const [openFaq, setOpenFaq] = useState(null);
+  const [shopProducts, setShopProducts] = useState([]);
 
   useEffect(() => {
     api.get("/faqs").then((r) => setFaqs(r.data.slice(0, 5))).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    api.get("/shop/products").then((r) => {
+      const all = r.data || [];
+      const featured = all.filter((p) => p.featured);
+      setShopProducts((featured.length > 0 ? featured : all).slice(0, 3));
+    }).catch(() => {});
+  }, []);
+
   if (!content) return <div className="min-h-[60vh] bg-white" />;
 
-const {
-  hero = {},
-  trust = { cards: [] },
-  how_it_works = { steps: [] },
-  brands_section = {},
-  why = { items: [] },
-  faq_section = {},
-  cta = {}
-} = content;
+const { hero, trust, how_it_works, brands_section, why, faq_section, cta } = content;
 if (!hero) return <div className="min-h-[60vh] bg-white" />;
 
 
@@ -207,6 +207,69 @@ if (!hero) return <div className="min-h-[60vh] bg-white" />;
           })}
         </div>
       </Section>
+
+      {/* SHOP TEASER */}
+      {shopProducts.length > 0 && (
+        <Section className="bg-[#FAFAFA] border-t border-[#EAEAEA]">
+          <FadeUp>
+            <div className="flex flex-wrap items-end justify-between gap-6">
+              <div>
+                <SectionEyebrow>Shop</SectionEyebrow>
+                <SectionHeading>Refurbished toestellen, direct leverbaar.</SectionHeading>
+                <p className="mt-4 text-[16px] text-[#666666] max-w-xl">
+                  Getest, gereinigd en met garantie — geen wachttijd, direct te bestellen.
+                </p>
+              </div>
+              <Link
+                to="/shop"
+                data-testid="home-shop-link"
+                className="inline-flex items-center gap-2 rounded-full bg-[#111111] text-white px-6 py-3.5 text-[15px] font-medium hover:bg-[#333] transition-colors whitespace-nowrap"
+              >
+                Bekijk de shop <ArrowRight className="h-4 w-4" strokeWidth={1.5} />
+              </Link>
+            </div>
+          </FadeUp>
+
+          <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {shopProducts.map((p, i) => (
+              <FadeUp key={p.id} delay={i * 0.05}>
+                <Link
+                  to={`/shop/${p.slug}`}
+                  data-testid={`home-shop-product-${p.slug}`}
+                  className="group block h-full rounded-2xl border border-[#EAEAEA] bg-white overflow-hidden hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-shadow duration-300"
+                >
+                  <div className="aspect-[4/3] bg-[#FAFAFA] overflow-hidden">
+                    {p.images?.[0] && (
+                      <img
+                        src={p.images[0]}
+                        alt={p.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    )}
+                  </div>
+                  <div className="p-6">
+                    <div className="text-[16px] font-medium text-[#111111]">{p.title}</div>
+                    <div className="mt-1 flex items-center gap-3 text-[13px] text-[#666666]">
+                      <span>{p.storage}</span>
+                      <span className="inline-flex items-center gap-1">
+                        <BatteryMedium className="h-3.5 w-3.5" strokeWidth={1.5} /> {p.battery_health}%
+                      </span>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between">
+                      <div className="text-[20px] font-semibold text-[#111111]">
+                        {new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(p.price)}
+                      </div>
+                      <span className="text-[13px] text-[#111111] inline-flex items-center gap-1">
+                        Bekijk <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              </FadeUp>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* WHY */}
       <Section className="border-t border-[#EAEAEA]">
