@@ -14,6 +14,7 @@ load_dotenv(ROOT_DIR / ".env")
 import logging
 import shop_models
 from shop_routes import router as shop_router
+from upload_routes import router as upload_router
 
 
 import os
@@ -97,6 +98,7 @@ app = FastAPI(
 )
 api = APIRouter(prefix="/api")
 app.include_router(shop_router)
+app.include_router(upload_router)
 
 @api.get("/debug-routes")
 async def debug_routes():

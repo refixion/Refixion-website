@@ -3,6 +3,7 @@ import { api, formatApiErrorDetail } from "../../lib/api";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
 import { Image as ImageIcon, Plus, Save, Settings2, Trash2, X } from "lucide-react";
+import ImageUploader from "../../components/admin/ImageUploader";
 
 const EMPTY_DRAFT = {
   title: "", slug: "", brand: "", model: "", storage: "", color: "",
@@ -175,7 +176,6 @@ export default function AdminShopPage() {
 function ProductModal({ draft, onClose, onSaved }) {
   const [form, setForm] = useState(draft || EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
-  const [newImageUrl, setNewImageUrl] = useState("");
   const [newOption, setNewOption] = useState({ name: "", price: "" });
 
   useEffect(() => { if (draft) setForm(draft); }, [draft]);
@@ -190,13 +190,6 @@ function ProductModal({ draft, onClose, onSaved }) {
   const isEdit = !!draft.id;
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
-
-  const addImage = () => {
-    if (!newImageUrl.trim()) return;
-    set({ images: [...(form.images || []), newImageUrl.trim()] });
-    setNewImageUrl("");
-  };
-  const removeImage = (idx) => set({ images: form.images.filter((_, i) => i !== idx) });
 
   const addOption = () => {
     if (!newOption.name.trim() || newOption.price === "") return;
@@ -317,30 +310,8 @@ function ProductModal({ draft, onClose, onSaved }) {
 
             {/* Foto's */}
             <div>
-              <label className="text-[11px] uppercase tracking-wider text-[#666666] block mb-2">Foto's (URL's)</label>
-              <div className="flex gap-2">
-                <input
-                  value={newImageUrl}
-                  onChange={(e) => setNewImageUrl(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addImage())}
-                  placeholder="https://..."
-                  className="flex-1 rounded-xl border border-[#EAEAEA] px-3 py-2 text-[13px]"
-                />
-                <button onClick={addImage} className="rounded-xl border border-[#EAEAEA] px-4 py-2 text-[13px] hover:bg-[#FAFAFA]">Toevoegen</button>
-              </div>
-              {form.images?.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {form.images.map((url, i) => (
-                    <div key={i} className="relative h-16 w-16 rounded-lg overflow-hidden border border-[#EAEAEA]">
-                      <img src={url} alt="" className="w-full h-full object-cover" />
-                      <button onClick={() => removeImage(i)} className="absolute top-0.5 right-0.5 bg-black/60 rounded-full p-0.5">
-                        <X className="h-3 w-3 text-white" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="mt-2 text-[11px] text-[#999999]">Upload de foto naar bijv. Supabase Storage of Imgur en plak hier de directe afbeeldings-URL.</p>
+              <label className="text-[11px] uppercase tracking-wider text-[#666666] block mb-2">Foto's</label>
+              <ImageUploader value={form.images || []} onChange={(images) => set({ images })} />
             </div>
 
             {/* Opties */}
