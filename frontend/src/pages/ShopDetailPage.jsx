@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft, ArrowRight, BatteryMedium, Check, ShoppingCart, Zap, ShieldCheck, Smartphone,
@@ -136,6 +136,7 @@ function RelatedProducts({ currentSlug, brand }) {
 
 export default function ShopDetailPage() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
@@ -204,9 +205,7 @@ export default function ShopDetailPage() {
   const handleBuyNow = () => {
     if (outOfStock) return;
     addToCart(buildCartItem());
-    // /cart wordt in Fase 2 gebouwd -- tot die tijd bevestigen we alleen dat
-    // het product is toegevoegd, i.p.v. door te sturen naar een lege pagina.
-    toast.success(`${product.title} toegevoegd -- de winkelwagenpagina volgt in de volgende fase`);
+    navigate("/cart");
   };
 
   return (

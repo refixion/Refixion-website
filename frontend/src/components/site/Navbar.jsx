@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Menu, X, ArrowRight } from "lucide-react";
+import { Menu, X, ArrowRight, ShoppingCart } from "lucide-react";
 import { t } from "../../i18n";
 import { LogoFull } from "./Logo";
+import { getCartCount } from "../../lib/cart";
 
 const NAV = [
   { to: "/", key: "nav.home" },
@@ -18,12 +19,24 @@ const NAV = [
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    setCartCount(getCartCount());
+    const onCartUpdate = () => setCartCount(getCartCount());
+    window.addEventListener("refixion:cart-updated", onCartUpdate);
+    window.addEventListener("storage", onCartUpdate);
+    return () => {
+      window.removeEventListener("refixion:cart-updated", onCartUpdate);
+      window.removeEventListener("storage", onCartUpdate);
+    };
   }, []);
 
   return (
@@ -53,6 +66,19 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-3">
+          <button
+            data-testid="nav-cart-btn"
+            aria-label="Winkelwagen"
+            onClick={() => navigate("/cart")}
+            className="relative p-2 rounded-lg text-[#111111] hover:bg-[#FAFAFA]"
+          >
+            <ShoppingCart className="h-5 w-5" strokeWidth={1.5} />
+            {cartCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 h-4 min-w-[16px] px-1 rounded-full bg-[#111111] text-white text-[10px] leading-4 text-center">
+                {cartCount}
+              </span>
+            )}
+          </button>
           <motion.button
             data-testid="nav-book-btn"
             whileHover={{ scale: 1.02 }}
