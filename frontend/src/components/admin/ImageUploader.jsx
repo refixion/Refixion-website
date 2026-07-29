@@ -3,14 +3,45 @@ import { toast } from "sonner";
 import { ImagePlus, Loader2, X } from "lucide-react";
 import { api, formatApiErrorDetail } from "../../lib/api";
 
+// Vercel Functions weigeren elk request boven 4,5MB (harde platformlimiet,
+// niet instelbaar). Foto's rechtstreeks van een telefooncamera zitten daar
+// vaak al overheen, dus we verkleinen/comprimeren altijd eerst in de browser
+// voor we ze versturen. 1600px is ruim genoeg voor productfoto's op de site.
+const MAX_DIMENSION = 1600;
+const JPEG_QUALITY = 0.82;
+
+async function compressImage(file) {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY));
+    if (!blob || blob.size >= file.size) return file; // geen winst — origineel gebruiken
+
+    const baseName = (file.name || "foto").replace(/\.\w+$/, "");
+    return new File([blob], `${baseName}.jpg`, { type: "image/jpeg" });
+  } catch {
+    // Kon het bestand niet decoderen in de browser (zeldzaam) — origineel proberen;
+    // de backend geeft dan alsnog een nette foutmelding als het te groot is.
+    return file;
+  }
+}
+
 /**
  * Shopify/Stripe-achtige image uploader.
  *
  * Props:
- * - value: string[] -- huidige lijst van publieke afbeelding-URL's (bron van waarheid)
+ * - value: string[] — huidige lijst van publieke afbeelding-URL's (bron van waarheid)
  * - onChange: (urls: string[]) => void
  *
- * De eerste URL in `value` is altijd de hoofdfoto -- reorder door slepen bepaalt dit.
+ * De eerste URL in `value` is altijd de hoofdfoto — reorder door slepen bepaalt dit.
  */
 export default function ImageUploader({ value = [], onChange }) {
   const [uploading, setUploading] = useState(false);
@@ -22,22 +53,33 @@ export default function ImageUploader({ value = [], onChange }) {
   const openPicker = () => inputRef.current?.click();
 
   const uploadFiles = async (fileList) => {
-    const files = Array.from(fileList || []).filter((f) => f.type.startsWith("image/"));
+    const files = Array.from(fileList || []).filter(
+      (f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name || "")
+    );
     if (files.length === 0) return;
 
     setUploading(true);
-    try {
-      const formData = new FormData();
-      files.forEach((f) => formData.append("files", f));
-      const res = await api.post("/upload/product-image", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      onChange([...value, ...res.data.urls]);
-    } catch (e) {
-      toast.error(formatApiErrorDetail(e?.response?.data?.detail) || "Uploaden mislukt. Probeer het opnieuw.");
-    } finally {
-      setUploading(false);
+    const base = value;
+    const uploaded = [];
+    // Eén voor één versturen (niet als één grote batch) — elke foto blijft zo
+    // ruim onder de 4,5MB-limiet, ongeacht hoeveel er tegelijk geselecteerd zijn.
+    for (const file of files) {
+      try {
+        const compressed = await compressImage(file);
+        const formData = new FormData();
+        formData.append("files", compressed);
+        const res = await api.post("/upload/product-image", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        uploaded.push(...res.data.urls);
+        onChange([...base, ...uploaded]);
+      } catch (e) {
+        toast.error(
+          formatApiErrorDetail(e?.response?.data?.detail) || `Uploaden van "${file.name}" mislukt.`
+        );
+      }
     }
+    setUploading(false);
   };
 
   const handleInputChange = (e) => {
@@ -108,7 +150,7 @@ export default function ImageUploader({ value = [], onChange }) {
             <div className="text-[13px] text-[#111111] font-medium">
               Sleep afbeeldingen hierheen, of klik om te kiezen
             </div>
-            <div className="text-[12px] text-[#999999]">JPEG, PNG, WEBP of HEIC · max 8MB per foto</div>
+            <div className="text-[12px] text-[#999999]">JPEG, PNG, WEBP of HEIC · wordt automatisch verkleind</div>
           </div>
         )}
       </div>
@@ -150,7 +192,7 @@ export default function ImageUploader({ value = [], onChange }) {
       )}
 
       {value.length > 1 && (
-        <p className="mt-2 text-[11px] text-[#999999]">Sleep om te herschikken -- de eerste foto wordt de hoofdfoto.</p>
+        <p className="mt-2 text-[11px] text-[#999999]">Sleep om te herschikken — de eerste foto wordt de hoofdfoto.</p>
       )}
     </div>
   );
