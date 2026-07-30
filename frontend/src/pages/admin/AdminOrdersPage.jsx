@@ -5,7 +5,7 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState([]);
 
   useEffect(() => {
-    api.get("/admin/orders")
+    api.get("/shop/admin/orders")
       .then((res) => setOrders(res.data))
       .catch(console.error);
   }, []);
