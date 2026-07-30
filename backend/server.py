@@ -29,7 +29,7 @@ from starlette.middleware.cors import CORSMiddleware
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from backend.database import engine, Base
 from auth import (
     ACCESS_TOKEN_MINUTES,
     create_access_token,
@@ -118,6 +118,12 @@ async def on_shutdown():
 async def root():
     return {"service": "refixion", "status": "ok"}
 
+@app.get("/api/create-tables")
+async def create_tables():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    return {"message": "Tables created"}
 
 @api.get("/brands")
 async def list_brands(session: AsyncSession = Depends(get_session)):
