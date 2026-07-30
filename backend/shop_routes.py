@@ -9,7 +9,6 @@ from auth import get_current_admin
 from database import get_session
 import random
 import string
-from models import Order
 from shop_models import Product, ProductOption, Order, OrderItem
 
 
