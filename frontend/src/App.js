@@ -24,6 +24,7 @@ import AdminContentPage from "@/pages/admin/AdminContentPage";
 import AdminSeoPage from "@/pages/admin/AdminSeoPage";
 import AdminWarrantiesPage from "@/pages/admin/AdminWarrantiesPage";
 import AdminShopPage from "@/pages/admin/AdminShopPage";
+import AdminOrdersPage from "@/pages/admin/AdminOrdersPage";
 import WarrantyPage from "@/pages/WarrantyPage";
 import ShopPage from "@/pages/ShopPage";
 import ShopDetailPage from "@/pages/ShopDetailPage";
@@ -69,6 +70,7 @@ function AnimatedRoutes() {
             <Route path="repair-methods" element={<AdminRepairMethodsPage />} />
             <Route path="warranties" element={<AdminWarrantiesPage />} />
             <Route path="shop" element={<AdminShopPage />} />
+            <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="content" element={<AdminContentPage />} />
             <Route path="seo" element={<AdminSeoPage />} />
             <Route path="workshop" element={<AdminWorkshopPage />} />
