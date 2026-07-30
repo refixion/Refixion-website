@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { Section } from "../components/site/primitives";
 import { getCart, removeFromCart, updateCartQuantity } from "../lib/cart";
+import { api } from "../lib/api";
 
 const FREE_SHIPPING_FROM = 50;
 const SHIPPING_COST = 4.95;
@@ -20,11 +21,21 @@ function lineTotal(item) {
 export default function CartPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
+  const [stockMap, setStockMap] = useState({});
 
   const reload = () => setItems(getCart());
 
   useEffect(() => {
     reload();
+    api.get("/shop/products")
+  .then((res) => {
+    const map = {};
+    res.data.forEach((p) => {
+      map[p.id] = p.stock;
+    });
+    setStockMap(map);
+  })
+  .catch(console.error);
     // Zodat de pagina ook bijwerkt als het item ergens anders is toegevoegd
     // (bv. via de productpagina in een andere tab).
     const onUpdate = () => reload();
@@ -44,9 +55,18 @@ export default function CartPage() {
 
   const handleQuantity = (idx, quantity) => {
     if (quantity < 1) return;
-    updateCartQuantity(idx, quantity);
-    reload();
-  };
+  
+    const item = items[idx];
+    const stock = stockMap[item.productId];
+  
+    if (stock !== undefined && quantity > stock) {
+      toast.error(`Er zijn nog maar ${stock} op voorraad.`);
+      return;
+    }
+
+  updateCartQuantity(idx, quantity);
+  reload();
+};
 
   if (items.length === 0) {
     return (
@@ -115,21 +135,26 @@ export default function CartPage() {
                 </div>
 
                 <div className="inline-flex items-center rounded-full border border-[#EAEAEA] self-start sm:self-auto">
-                  <button
-                    onClick={() => handleQuantity(idx, item.quantity - 1)}
-                    className="h-9 w-9 flex items-center justify-center hover:bg-[#FAFAFA] rounded-l-full"
-                    aria-label="Minder"
-                  >
-                    <Minus className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  </button>
+                <button
+                  onClick={() => handleQuantity(idx, item.quantity - 1)}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-[#FAFAFA] rounded-l-full"
+                  aria-label="Minder"
+                >
+                  <Minus className="h-3.5 w-3.5" strokeWidth={1.5} />
+                </button>
                   <span className="w-8 text-center text-[14px] text-[#111111]" data-testid={`cart-item-qty-${idx}`}>{item.quantity}</span>
-                  <button
-                    onClick={() => handleQuantity(idx, item.quantity + 1)}
-                    className="h-9 w-9 flex items-center justify-center hover:bg-[#FAFAFA] rounded-r-full"
-                    aria-label="Meer"
-                  >
-                    <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  </button>
+                <button
+                  onClick={() => handleQuantity(idx, item.quantity + 1)}
+                  disabled={item.quantity >= (stockMap[item.productId] ?? Infinity)}
+                  aria-label="Meer"
+                  className={`h-9 w-9 flex items-center justify-center rounded-r-full ${
+                    item.quantity >= (stockMap[item.productId] ?? Infinity)
+                      ? "opacity-40 cursor-not-allowed"
+                      : "hover:bg-[#FAFAFA]"
+                  }`}
+                >
+                  <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+                </button>
                 </div>
 
                 <div className="w-24 text-right text-[15px] font-semibold text-[#111111]">
