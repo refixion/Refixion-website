@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { Section } from "../components/site/primitives";
@@ -18,6 +18,7 @@ function lineTotal(item) {
 }
 
 export default function CartPage() {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
 
   const reload = () => setItems(getCart());
@@ -179,7 +180,7 @@ export default function CartPage() {
 
               <button
                 data-testid="cart-checkout-btn"
-                onClick={() => toast.info("Checkout volgt in de volgende fase")}
+                onClick={() => navigate("/checkout")}
                 className="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-full bg-[#111111] text-white px-6 py-3.5 text-[15px] font-medium hover:bg-[#333] transition-colors"
               >
                 Verder naar checkout
