@@ -9,7 +9,7 @@ from auth import get_current_admin
 from database import get_session
 import random
 import string
-
+from models import Order
 from shop_models import Product, ProductOption, Order, OrderItem
 
 
@@ -72,6 +72,27 @@ async def admin_list_products(_: dict = Depends(get_current_admin), session: Asy
     rows = (await session.execute(select(Product).order_by(Product.created_at.desc()))).scalars().all()
     return [product_to_dict(p) for p in rows]
 
+@router.get("/admin/orders")
+async def get_orders(session: AsyncSession = Depends(get_session)):
+    result = await session.execute(
+        select(Order).order_by(Order.created_at.desc())
+    )
+    orders = result.scalars().all()
+
+    return [
+        {
+            "id": order.id,
+            "order_number": order.order_number,
+            "customer_name": f"{order.first_name} {order.last_name}",
+            "email": order.email,
+            "phone": order.phone,
+            "total": order.total_price,
+            "payment_status": order.payment_status,
+            "order_status": order.order_status,
+            "created_at": order.created_at,
+        }
+        for order in orders
+    ]
 
 @router.post("/products")
 async def create_product(
