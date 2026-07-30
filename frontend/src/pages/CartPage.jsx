@@ -25,28 +25,48 @@ export default function CartPage() {
 
   const reload = () => setItems(getCart());
 
-  useEffect(() => {
-    reload();
-    api.get("/shop/products")
-  .then((res) => {
-    const map = {};
-    res.data.forEach((p) => {
-      map[p.id] = p.stock;
-    });
-    setStockMap(map);
-  })
-  .catch(console.error);
-    // Zodat de pagina ook bijwerkt als het item ergens anders is toegevoegd
-    // (bv. via de productpagina in een andere tab).
-    const onUpdate = () => reload();
-    window.addEventListener("refixion:cart-updated", onUpdate);
-    window.addEventListener("storage", onUpdate);
-    return () => {
-      window.removeEventListener("refixion:cart-updated", onUpdate);
-      window.removeEventListener("storage", onUpdate);
-    };
-  }, []);
+useEffect(() => {
+  reload();
 
+  api.get("/shop/products")
+    .then((res) => {
+      const map = {};
+      res.data.forEach((p) => {
+        map[p.id] = p.stock;
+      });
+
+      setStockMap(map);
+
+      // Synchroniseer winkelwagen
+      const cart = getCart();
+      let changed = false;
+
+      cart.forEach((item, index) => {
+        const stock = map[item.productId];
+
+        if (stock !== undefined && item.quantity > stock) {
+          updateCartQuantity(index, stock);
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        toast.info("Je winkelwagen is bijgewerkt omdat de voorraad is gewijzigd.");
+        reload();
+      }
+    })
+    .catch(console.error);
+
+  const onUpdate = () => reload();
+
+  window.addEventListener("refixion:cart-updated", onUpdate);
+  window.addEventListener("storage", onUpdate);
+
+  return () => {
+    window.removeEventListener("refixion:cart-updated", onUpdate);
+    window.removeEventListener("storage", onUpdate);
+  };
+}, []);
   const handleRemove = (idx, title) => {
     removeFromCart(idx);
     reload();
