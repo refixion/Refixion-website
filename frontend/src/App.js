@@ -28,6 +28,7 @@ import WarrantyPage from "@/pages/WarrantyPage";
 import ShopPage from "@/pages/ShopPage";
 import ShopDetailPage from "@/pages/ShopDetailPage";
 import CartPage from "@/pages/CartPage";
+import CheckoutPage from "@/pages/CheckoutPage";
 import { AuthProvider } from "@/lib/auth";
 
 function AnimatedRoutes() {
@@ -52,6 +53,7 @@ function AnimatedRoutes() {
             <Route path="/shop" element={<ShopPage />} />
             <Route path="/shop/:slug" element={<ShopDetailPage />} />
             <Route path="/cart" element={<CartPage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/legal/privacy" element={<LegalPage kind="privacy" />} />
             <Route path="/legal/terms" element={<LegalPage kind="terms" />} />
             <Route path="/legal/cookies" element={<LegalPage kind="cookies" />} />
