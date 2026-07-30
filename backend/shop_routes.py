@@ -72,17 +72,21 @@ async def admin_list_products(_: dict = Depends(get_current_admin), session: Asy
     return [product_to_dict(p) for p in rows]
 
 @router.get("/admin/orders")
-async def get_orders(session: AsyncSession = Depends(get_session)):
+async def get_admin_orders(
+    session: AsyncSession = Depends(get_session),
+):
     result = await session.execute(
         select(Order).order_by(Order.created_at.desc())
     )
+
     orders = result.scalars().all()
 
     return [
         {
             "id": order.id,
             "order_number": order.order_number,
-            "customer_name": f"{order.first_name} {order.last_name}",
+            "first_name": order.first_name,
+            "last_name": order.last_name,
             "email": order.email,
             "phone": order.phone,
             "total": order.total_price,
