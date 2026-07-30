@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_admin
 from database import get_session
-from shop_models import Product, ProductOption
+import random
+import string
+
+from shop_models import Product, ProductOption, Order, OrderItem
+
 
 router = APIRouter(prefix="/api/shop", tags=["Shop"])
 
@@ -164,3 +168,202 @@ async def delete_product(
     await session.commit()
 
     return {"success": True}
+class Order(Base):
+    __tablename__ = "orders"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    # Mensvriendelijk nummer voor in de admin en klantcommunicatie — de UUID
+    # hierboven blijft de echte primary/foreign key.
+    order_number: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+
+    first_name: Mapped[str] = mapped_column(String, nullable=False)
+    last_name: Mapped[str] = mapped_column(String, nullable=False)
+    email: Mapped[str] = mapped_column(String, nullable=False)
+    phone: Mapped[str] = mapped_column(String, nullable=False)
+
+    street: Mapped[str] = mapped_column(String, nullable=False)
+    house_number: Mapped[str] = mapped_column(String, nullable=False)
+    postal_code: Mapped[str] = mapped_column(String, nullable=False)
+    city: Mapped[str] = mapped_column(String, nullable=False)
+    country: Mapped[str] = mapped_column(String, nullable=False, default="Nederland")
+
+    shipping_method: Mapped[str] = mapped_column(String, nullable=False, default="shipping")  # "pickup" | "shipping"
+
+    subtotal: Mapped[float] = mapped_column(Float, nullable=False)
+    shipping_cost: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    # Altijd (her)berekend server-side uit de order_items — een door de klant
+    # meegestuurd bedrag wordt nooit vertrouwd.
+    total_price: Mapped[float] = mapped_column(Float, nullable=False)
+
+    payment_status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    order_status: Mapped[str] = mapped_column(String, nullable=False, default="new")
+
+    created_at: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id: Mapped[str] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    product_id: Mapped[str] = mapped_column(String, nullable=False)
+    # Snapshot van titel/prijs op bestelmoment — als een product later hernoemd,
+    # geprijsd of verwijderd wordt, blijft de historische bestelling correct.
+    product_title: Mapped[str] = mapped_column(String, nullable=False)
+    unit_price: Mapped[float] = mapped_column(Float, nullable=False)
+
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    # Gekozen product_options op bestelmoment, als [{"id","name","price"}, ...]
+    options: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    line_total: Mapped[float] = mapped_column(Float, nullable=False)
+
+FREE_SHIPPING_FROM = 80
+SHIPPING_COST = 4.95
+
+
+def _generate_order_number() -> str:
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    suffix = "".join(random.choices(string.digits, k=4))
+    return f"RFX-{today}-{suffix}"
+
+
+def order_to_dict(o: Order, items: list[OrderItem]) -> dict:
+    return {
+        "id": o.id,
+        "order_number": o.order_number,
+        "first_name": o.first_name,
+        "last_name": o.last_name,
+        "email": o.email,
+        "phone": o.phone,
+        "street": o.street,
+        "house_number": o.house_number,
+        "postal_code": o.postal_code,
+        "city": o.city,
+        "country": o.country,
+        "shipping_method": o.shipping_method,
+        "subtotal": o.subtotal,
+        "shipping_cost": o.shipping_cost,
+        "total_price": o.total_price,
+        "payment_status": o.payment_status,
+        "order_status": o.order_status,
+        "created_at": o.created_at,
+        "items": [
+            {
+                "product_id": i.product_id,
+                "product_title": i.product_title,
+                "unit_price": i.unit_price,
+                "quantity": i.quantity,
+                "options": i.options,
+                "line_total": i.line_total,
+            }
+            for i in items
+        ],
+    }
+
+
+@router.post("/orders")
+async def create_order(payload: dict, session: AsyncSession = Depends(get_session)):
+    """Plaatst een bestelling. Publiek endpoint — geen admin-auth, dit is de
+    checkout van een klant.
+
+    Verwacht:
+    {
+      "first_name", "last_name", "email", "phone",
+      "street", "house_number", "postal_code", "city", "country",
+      "shipping_method": "pickup" | "shipping",
+      "items": [{"product_id": "...", "quantity": 1, "option_ids": ["..."]}]
+    }
+
+    Prijzen en voorraad worden altijd server-side opnieuw bepaald — een door de
+    klant meegestuurd bedrag wordt nooit vertrouwd.
+    """
+    required_customer_fields = [
+        "first_name", "last_name", "email", "phone",
+        "street", "house_number", "postal_code", "city",
+    ]
+    missing = [f for f in required_customer_fields if not payload.get(f)]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Ontbrekende velden: {', '.join(missing)}")
+
+    items_in = payload.get("items") or []
+    if not items_in:
+        raise HTTPException(status_code=400, detail="Winkelwagen is leeg")
+
+    order_items: list[OrderItem] = []
+    subtotal = 0.0
+
+    for line in items_in:
+        product = await session.get(Product, line.get("product_id"))
+        if not product or not product.enabled:
+            raise HTTPException(status_code=400, detail=f"Product niet beschikbaar: {line.get('product_id')}")
+
+        quantity = int(line.get("quantity", 1))
+        if quantity < 1:
+            raise HTTPException(status_code=400, detail=f"Ongeldig aantal voor {product.title}")
+        if product.stock < quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Onvoldoende voorraad voor {product.title} (nog {product.stock} beschikbaar)",
+            )
+
+        option_ids = line.get("option_ids") or []
+        chosen_options = []
+        if option_ids:
+            opt_rows = (await session.execute(
+                select(ProductOption).where(
+                    ProductOption.product_id == product.id,
+                    ProductOption.id.in_(option_ids),
+                    ProductOption.enabled.is_(True),
+                )
+            )).scalars().all()
+            chosen_options = [{"id": o.id, "name": o.name, "price": o.price} for o in opt_rows]
+
+        options_total = sum(o["price"] for o in chosen_options)
+        line_total = (product.price + options_total) * quantity
+        subtotal += line_total
+
+        product.stock -= quantity  # voorraad direct reserveren bij het plaatsen van de bestelling
+
+        order_items.append(OrderItem(
+            product_id=product.id,
+            product_title=product.title,
+            unit_price=product.price,
+            quantity=quantity,
+            options=chosen_options,
+            line_total=line_total,
+        ))
+
+    shipping_method = payload.get("shipping_method", "shipping")
+    shipping_cost = 0.0 if (shipping_method == "pickup" or subtotal >= FREE_SHIPPING_FROM) else SHIPPING_COST
+    total_price = subtotal + shipping_cost
+
+    order = Order(
+        order_number=_generate_order_number(),
+        first_name=payload["first_name"],
+        last_name=payload["last_name"],
+        email=payload["email"],
+        phone=payload["phone"],
+        street=payload["street"],
+        house_number=payload["house_number"],
+        postal_code=payload["postal_code"],
+        city=payload["city"],
+        country=payload.get("country", "Nederland"),
+        shipping_method=shipping_method,
+        subtotal=subtotal,
+        shipping_cost=shipping_cost,
+        total_price=total_price,
+        created_at=_now_iso(),
+    )
+    session.add(order)
+    await session.flush()  # order.id beschikbaar maken voor de order_items hieronder
+
+    for item in order_items:
+        item.order_id = order.id
+        session.add(item)
+
+    await session.commit()
+
+    return order_to_dict(order, order_items)
