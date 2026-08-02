@@ -26,14 +26,14 @@ useEffect(() => {
   loadOrder();
 }, [loadOrder]);
   
-  async function updateStatus(status) {
-    await api.patch(`/shop/admin/orders/${id}`, {
-      order_status: status,
-    });
+async function updateStatus(status) {
+  await api.put(`/shop/admin/orders/${id}/status`, {
+    status: status,
+  });
 
-    loadOrder();
-  }
-
+  loadOrder();
+}
+  
   if (loading) return <div>Laden...</div>;
 
   if (!order) return <div>Bestelling niet gevonden.</div>;
