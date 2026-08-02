@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -73,29 +73,59 @@ async def admin_list_products(_: dict = Depends(get_current_admin), session: Asy
 
 @router.get("/admin/orders")
 async def get_admin_orders(
+    q: str = "",
+    status: str = "",
+    _: dict = Depends(get_current_admin),
+    page: int = 1,
+    limit: int = 10,
     session: AsyncSession = Depends(get_session),
 ):
-    result = await session.execute(
-        select(Order).order_by(Order.created_at.desc())
-    )
+
+    query = select(Order)
+
+    if q:
+        query = query.where(
+            or_(
+                Order.order_number.ilike(f"%{q}%"),
+                Order.email.ilike(f"%{q}%")
+            )
+        )
+
+    if status:
+        query = query.where(Order.order_status == status)
+
+    query = query.order_by(Order.created_at.desc())
+
+    # totaal aantal resultaten
+    count_result = await session.execute(query)
+    total = len(count_result.scalars().all())
+
+    # pagination
+    query = query.offset((page - 1) * limit).limit(limit)
+
+    result = await session.execute(query)
 
     orders = result.scalars().all()
 
-    return [
-        {
-            "id": order.id,
-            "order_number": order.order_number,
-            "first_name": order.first_name,
-            "last_name": order.last_name,
-            "email": order.email,
-            "phone": order.phone,
-            "total_price": order.total_price,
-            "payment_status": order.payment_status,
-            "order_status": order.order_status,
-            "created_at": order.created_at,
-        }
-        for order in orders
-    ]
+    return {
+        "orders": [
+            {
+                "id": order.id,
+                "order_number": order.order_number,
+                "first_name": order.first_name,
+                "last_name": order.last_name,
+                "email": order.email,
+                "total_price": order.total_price,
+                "order_status": order.order_status,
+                "created_at": order.created_at,
+            }
+            for order in orders
+        ],
+        "page": page,
+        "limit": limit,
+        "total": total,
+        "pages": (total + limit - 1) // limit
+    }
 
 @router.get("/admin/orders/{order_id}")
 async def get_admin_order(
@@ -128,13 +158,15 @@ async def update_order_status(
     if not order:
         raise HTTPException(status_code=404, detail="Order niet gevonden")
 
-    allowed_statuses = [
-        "new",
-        "processing",
-        "shipped",
-        "delivered",
-        "cancelled"
-    ]
+allowed_statuses = [
+    "new",
+    "processing",
+    "waiting_parts",
+    "packed",
+    "shipped",
+    "delivered",
+    "cancelled"
+]
 
     status = payload.get("status")
 
