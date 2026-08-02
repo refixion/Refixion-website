@@ -89,7 +89,7 @@ async def get_admin_orders(
             "last_name": order.last_name,
             "email": order.email,
             "phone": order.phone,
-            "total": order.total_price,
+            "total_price": order.total_price,
             "payment_status": order.payment_status,
             "order_status": order.order_status,
             "created_at": order.created_at,
