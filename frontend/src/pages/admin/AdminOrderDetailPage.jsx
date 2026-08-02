@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 
@@ -7,19 +7,19 @@ export default function AdminOrderDetailPage() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadOrder();
-  }, [id]);
+useEffect(() => {
+  loadOrder();
+}, [loadOrder]);
+  
+const loadOrder = useCallback(async () => {
+  setLoading(true);
 
-  async function loadOrder() {
-    setLoading(true);
+  const res = await api.get(`/shop/admin/orders/${id}`);
 
-    const res = await api.get(`/shop/admin/orders/${id}`);
-
-    setOrder(res.data);
-    setLoading(false);
-  }
-
+  setOrder(res.data);
+  setLoading(false);
+}, [id]);
+  
   async function updateStatus(status) {
     await api.patch(`/shop/admin/orders/${id}`, {
       order_status: status,
