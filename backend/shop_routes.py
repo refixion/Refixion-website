@@ -97,6 +97,63 @@ async def get_admin_orders(
         for order in orders
     ]
 
+@router.get("/admin/orders/{order_id}")
+async def get_admin_order(
+    order_id: str,
+    _: dict = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    order = await session.get(Order, order_id)
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order niet gevonden")
+
+    items = (
+        await session.execute(
+            select(OrderItem).where(OrderItem.order_id == order.id)
+        )
+    ).scalars().all()
+
+    return order_to_dict(order, items)
+
+@router.put("/admin/orders/{order_id}/status")
+async def update_order_status(
+    order_id: str,
+    payload: dict,
+    _: dict = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    order = await session.get(Order, order_id)
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order niet gevonden")
+
+    allowed_statuses = [
+        "new",
+        "processing",
+        "shipped",
+        "delivered",
+        "cancelled"
+    ]
+
+    status = payload.get("status")
+
+    if status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail="Ongeldige status"
+        )
+
+    order.order_status = status
+
+    await session.commit()
+
+    return {
+        "success": True,
+        "status": order.order_status
+    }
+
+
 @router.post("/products")
 async def create_product(
     product: dict,
