@@ -158,15 +158,15 @@ async def update_order_status(
     if not order:
         raise HTTPException(status_code=404, detail="Order niet gevonden")
 
-allowed_statuses = [
-    "new",
-    "processing",
-    "waiting_parts",
-    "packed",
-    "shipped",
-    "delivered",
-    "cancelled"
-]
+    allowed_statuses = [
+        "new",
+        "processing",
+        "waiting_parts",
+        "packed",
+        "shipped",
+        "delivered",
+        "cancelled"
+    ]
 
     status = payload.get("status")
 
