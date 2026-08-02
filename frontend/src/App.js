@@ -2,6 +2,7 @@ import React from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import SiteLayout from "@/components/site/SiteLayout";
 import HomePage from "@/pages/HomePage";
 import RepairsPage from "@/pages/RepairsPage";
@@ -92,6 +93,7 @@ function App() {
           <AnimatedRoutes />
         </AuthProvider>
       </BrowserRouter>
+      <SpeedInsights />
     </div>
   );
 }
