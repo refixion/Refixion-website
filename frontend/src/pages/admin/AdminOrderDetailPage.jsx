@@ -7,18 +7,24 @@ export default function AdminOrderDetailPage() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
 
-useEffect(() => {
-  loadOrder();
-}, [loadOrder]);
-  
 const loadOrder = useCallback(async () => {
   setLoading(true);
 
-  const res = await api.get(`/shop/admin/orders/${id}`);
+  try {
+    const res = await api.get(`/shop/admin/orders/${id}`);
+    setOrder(res.data);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
 
-  setOrder(res.data);
-  setLoading(false);
 }, [id]);
+
+
+useEffect(() => {
+  loadOrder();
+}, [loadOrder]);
   
   async function updateStatus(status) {
     await api.patch(`/shop/admin/orders/${id}`, {
