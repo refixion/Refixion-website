@@ -15,7 +15,7 @@ import logging
 import shop_models
 from shop_routes import router as shop_router
 from upload_routes import router as upload_router
-
+from payment_routes import router as payment_router
 
 import os
 import secrets as _secrets
@@ -29,7 +29,7 @@ from starlette.middleware.cors import CORSMiddleware
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.database import engine, Base
+from database import engine, Base
 from auth import (
     ACCESS_TOKEN_MINUTES,
     create_access_token,
@@ -96,10 +96,21 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
 )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://potential-adventure-g4wx75v776jv297j4-3000.app.github.dev",
+        "http://localhost:3000",
+        "https://refixion-website.vercel.app",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 api = APIRouter(prefix="/api")
 app.include_router(shop_router)
 app.include_router(upload_router)
-
+app.include_router(payment_router, prefix="/api")
 @api.get("/debug-routes")
 async def debug_routes():
     return [str(route.path) for route in app.routes]
@@ -913,13 +924,3 @@ async def admin_list_brands(_: dict = Depends(admin_only), session: AsyncSession
 # ------- Mount -------
 app.include_router(api)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get(
-        "CORS_ORIGINS",
-        "https://refixion.nl,https://www.refixion.nl,https://refixion-website.vercel.app"
-    ).split(","),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)

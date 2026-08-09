@@ -6,10 +6,12 @@ environment (see .env.example) instead of MONGO_URL / DB_NAME.
 import os
 import uuid
 
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import NullPool
 
+load_dotenv()
 
 def _normalize_database_url(url: str) -> str:
     """Ensure the URL uses the asyncpg driver regardless of how it was supplied.

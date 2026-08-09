@@ -86,25 +86,48 @@ export default function CheckoutPage() {
   };
   const goBack = () => setStep((s) => Math.max(0, s - 1));
 
+
   const placeOrder = async () => {
-    setSubmitting(true);
-    try {
-      const res = await api.post("/shop/orders", {
+  setSubmitting(true);
+
+  try {
+    const paymentItems = items.map((i) => ({
+      product_id: i.productId,
+      quantity: Number(i.quantity),
+      option_ids: i.optionIds || [],
+    }));
+
+    console.log("=== STRIPE CHECKOUT DEBUG ===");
+    console.log("Original cart:", items);
+    console.log("Payment items:", paymentItems);
+    console.log(
+      "JSON:",
+      JSON.stringify({
         ...form,
-        items: items.map((i) => ({
-          product_id: i.productId,
-          quantity: i.quantity,
-          option_ids: i.optionIds || [],
-        })),
-      });
-      clearCart();
-      setPlacedOrder(res.data);
-    } catch (e) {
-      toast.error(formatApiErrorDetail(e?.response?.data?.detail) || "Bestellen mislukt. Probeer het opnieuw.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+        items: paymentItems,
+      })
+    );
+
+    const res = await api.post("/payments/create-checkout-session", {
+      ...form,
+      items: paymentItems,
+    });
+
+    window.location.href = res.data.url;
+  } catch (e) {
+    console.error("CHECKOUT ERROR:", e);
+    console.error("SERVER RESPONSE:", e?.response?.data);
+
+    toast.error(
+      formatApiErrorDetail(e?.response?.data?.detail) ||
+      "Betaling starten mislukt. Probeer het opnieuw."
+    );
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+
 
   // ------- Bevestiging -------
   if (placedOrder) {
@@ -262,11 +285,14 @@ export default function CheckoutPage() {
             {step === 3 && (
               <div>
                 <div className="rounded-xl border border-[#EAEAEA] p-5">
-                  <div className="text-[14px] font-medium text-[#111111]">Online betalen</div>
-                  <p className="mt-1 text-[13px] text-[#666666]">
-                    Rechtstreeks online afrekenen (iDEAL, creditcard) volgt binnenkort. Als je nu bestelt, plaatsen
-                    we je bestelling alvast en nemen we contact met je op om de betaling af te ronden.
-                  </p>
+                <div className="text-[14px] font-medium text-[#111111]">
+                  Online betalen
+                </div>
+
+                <p className="mt-1 text-[13px] text-[#666666]">
+                  Je wordt doorgestuurd naar Stripe om je bestelling veilig af te rekenen
+                  met iDEAL of creditcard.
+                </p>
                 </div>
               </div>
             )}
@@ -289,7 +315,7 @@ export default function CheckoutPage() {
                   className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-full bg-[#111111] text-white px-6 py-3 text-[14px] font-medium hover:bg-[#333] disabled:opacity-60"
                 >
                   {submitting && <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />}
-                  Bestelling plaatsen
+                  Naar betaling
                 </button>
               )}
             </div>
