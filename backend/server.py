@@ -99,6 +99,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://refixion.nl",
+        "https://www.refixion.nl",
         "https://potential-adventure-g4wx75v776jv297j4-3000.app.github.dev",
         "http://localhost:3000",
         "https://refixion-website.vercel.app",
