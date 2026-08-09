@@ -1,4 +1,3 @@
-```jsx
 import React from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Check } from "lucide-react";
@@ -45,4 +44,3 @@ export default function PaymentSuccessPage() {
     </Section>
   );
 }
-```
