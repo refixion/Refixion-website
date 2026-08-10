@@ -42,6 +42,7 @@ export default function CheckoutPage() {
   const [items, setItems] = useState([]);
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [placedOrder, setPlacedOrder] = useState(null);
   const [errors, setErrors] = useState({});
 
@@ -87,30 +88,25 @@ export default function CheckoutPage() {
   const goBack = () => setStep((s) => Math.max(0, s - 1));
 
 
-  const placeOrder = async () => {
+const placeOrder = async () => {
+  if (!termsAccepted) {
+    toast.error("Je moet akkoord gaan met de algemene voorwaarden.");
+    return;
+  }
+
   setSubmitting(true);
 
   try {
-    const paymentItems = items.map((i) => ({
-      product_id: i.productId,
-      quantity: Number(i.quantity),
-      option_ids: i.optionIds || [],
-    }));
-
-    console.log("=== STRIPE CHECKOUT DEBUG ===");
-    console.log("Original cart:", items);
-    console.log("Payment items:", paymentItems);
-    console.log(
-      "JSON:",
-      JSON.stringify({
-        ...form,
-        items: paymentItems,
-      })
-    );
-
     const res = await api.post("/payments/create-checkout-session", {
       ...form,
-      items: paymentItems,
+
+      terms_accepted: true,
+
+      items: items.map((i) => ({
+        product_id: i.productId,
+        quantity: i.quantity,
+        option_ids: i.optionIds || [],
+      })),
     });
 
     window.location.href = res.data.url;
@@ -120,7 +116,7 @@ export default function CheckoutPage() {
 
     toast.error(
       formatApiErrorDetail(e?.response?.data?.detail) ||
-      "Betaling starten mislukt. Probeer het opnieuw."
+        "Afrekenen mislukt. Probeer het opnieuw."
     );
   } finally {
     setSubmitting(false);
@@ -297,27 +293,67 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            <div className="mt-8 flex gap-3">
-              {step > 0 && (
-                <button onClick={goBack} className="rounded-full border border-[#EAEAEA] px-6 py-3 text-[14px] font-medium hover:bg-[#FAFAFA]">
-                  Vorige
-                </button>
+            <div className="mt-8">
+
+              {step === STEPS.length - 1 && (
+                <label className="flex items-start gap-3 mb-5 text-[13px] text-[#666666] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                  />
+
+                  <span>
+                    Ik ga akkoord met{" "}
+                    <Link
+                      to="/legal/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#111111] underline hover:no-underline"
+                    >
+                      de algemene voorwaarden
+                    </Link>
+                    .
+                  </span>
+                </label>
               )}
-              {step < STEPS.length - 1 ? (
-                <button onClick={goNext} className="flex-1 sm:flex-none rounded-full bg-[#111111] text-white px-6 py-3 text-[14px] font-medium hover:bg-[#333]">
-                  Volgende
-                </button>
-              ) : (
-                <button
-                  onClick={placeOrder}
-                  disabled={submitting}
-                  data-testid="place-order-btn"
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-full bg-[#111111] text-white px-6 py-3 text-[14px] font-medium hover:bg-[#333] disabled:opacity-60"
-                >
-                  {submitting && <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />}
-                  Naar betaling
-                </button>
-              )}
+
+              <div className="flex gap-3">
+                {step > 0 && (
+                  <button
+                    onClick={goBack}
+                    className="rounded-full border border-[#EAEAEA] px-6 py-3 text-[14px] font-medium hover:bg-[#FAFAFA]"
+                  >
+                    Vorige
+                  </button>
+                )}
+
+                {step < STEPS.length - 1 ? (
+                  <button
+                    onClick={goNext}
+                    className="flex-1 sm:flex-none rounded-full bg-[#111111] text-white px-6 py-3 text-[14px] font-medium hover:bg-[#333]"
+                  >
+                    Volgende
+                  </button>
+                ) : (
+                  <button
+                    onClick={placeOrder}
+                    disabled={submitting || !termsAccepted}
+                    data-testid="place-order-btn"
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-full bg-[#111111] text-white px-6 py-3 text-[14px] font-medium hover:bg-[#333] disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {submitting && (
+                      <Loader2
+                        className="h-4 w-4 animate-spin"
+                        strokeWidth={2}
+                      />
+                    )}
+
+                    Betalen en bestelling plaatsen
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

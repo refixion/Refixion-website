@@ -32,6 +32,8 @@ class CheckoutRequest(BaseModel):
 
     shipping_method: str = "shipping"
 
+    terms_accepted: bool
+
     items: list[PaymentItem]
 
 
@@ -46,6 +48,11 @@ async def create_checkout_session(request: CheckoutRequest):
     Stripe rekent de daadwerkelijke productprijzen uit op basis
     van de gegevens die we hier doorgeven.
     """
+    if not request.terms_accepted:
+        raise HTTPException(
+            status_code=400,
+            detail="Je moet akkoord gaan met de algemene voorwaarden."
+        )
 
     if not stripe.api_key:
         raise HTTPException(
@@ -207,6 +214,7 @@ async def create_checkout_session(request: CheckoutRequest):
                 "city": request.city or "",
                 "country": request.country,
                 "shipping_method": request.shipping_method,
+                "terms_accepted": "true",
             },
 
             success_url=(
