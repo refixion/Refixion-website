@@ -112,3 +112,11 @@ class RepairPriceOverride(BaseModel):
 
 class BookingStatusIn(BaseModel):
     status: str  # pending | confirmed | in_progress | ready | completed | cancelled
+
+class ReturnRequest(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    order_number: str
+    reason: str
+    description: str = ""

@@ -233,6 +233,12 @@ export default function Footer() {
             >
               {t("footer.terms")}
             </Link>
+            <Link
+              to="/retourneren"
+              className="hover:text-[#111111]"
+            >
+              Retourneren & herroepen
+            </Link>
           </div>
         </div>
       </div>

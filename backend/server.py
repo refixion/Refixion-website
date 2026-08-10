@@ -66,6 +66,7 @@ from schemas import (
     RepairPriceOverride,
     WarrantyIn,
     WorkshopIn,
+    ReturnRequest,
 )
 from seed import seed_all
 from serializers import (
@@ -357,22 +358,239 @@ def _internal_email_html(booking: dict) -> str:
 <tr><td style="padding:4px 12px;color:#666;">Browser</td><td>{booking.get('user_agent','')}</td></tr>
 </table></body></html>"""
 
+def _email_layout(content: str, ws: dict | None = None) -> str:
+    ws = ws or {}
 
-async def _send_email(to_email: str, subject: str, html: str, session: AsyncSession) -> bool:
+    business_name = ws.get("business_name") or "Refixion"
+    address = ws.get("address") or "Dorpsstraat 51"
+    postal_code = ws.get("postal_code") or "1721 BB"
+    city = ws.get("city") or "Broek op Langedijk"
+    country = ws.get("country") or "Nederland"
+    phone = ws.get("phone") or "+31 6 44859536"
+    email = ws.get("email") or "info@refixion.nl"
+
+    phone_html = (
+        f'<a href="tel:{phone}" style="color:#111111;text-decoration:none;">'
+        f'{phone}</a>'
+        if phone
+        else ""
+    )
+
+    return f"""
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{business_name}</title>
+</head>
+
+<body style="
+    margin:0;
+    padding:0;
+    background:#f5f5f5;
+    font-family:Arial, Helvetica, sans-serif;
+    color:#111111;
+">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background:#f5f5f5;padding:40px 16px;">
+
+    <tr>
+        <td align="center">
+
+            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="
+                       max-width:620px;
+                       background:#ffffff;
+                       border:1px solid #e5e5e5;
+                   ">
+
+                <!-- HEADER -->
+                <tr>
+                    <td style="
+                        padding:32px 36px;
+                        border-bottom:1px solid #eeeeee;
+                    ">
+
+                        <img
+                            src="https://refixion.nl/brand/refixion-logo.png"
+                            alt="Refixion"
+                            width="180"
+                            style="
+                                display:block;
+                                width:180px;
+                                max-width:100%;
+                                height:auto;
+                                border:0;
+                            "
+                        >
+
+                    </td>
+                </tr>
+
+                <!-- CONTENT -->
+                <tr>
+                    <td style="
+                        padding:36px;
+                        font-size:15px;
+                        line-height:1.7;
+                    ">
+
+                        {content}
+
+                    </td>
+                </tr>
+
+                <!-- FOOTER -->
+                <tr>
+                    <td style="
+                        padding:28px 36px;
+                        background:#fafafa;
+                        border-top:1px solid #eeeeee;
+                        font-size:12px;
+                        line-height:1.7;
+                        color:#666666;
+                    ">
+
+                        <strong style="color:#111111;">
+                            {business_name}
+                        </strong>
+                        <br>
+
+                        {address}
+                        <br>
+
+                        {postal_code} {city}
+                        <br>
+
+                        {country}
+
+                        <br><br>
+
+                        <a
+                            href="mailto:{email}"
+                            style="color:#111111;text-decoration:none;"
+                        >
+                            {email}
+                        </a>
+
+                        {f" · {phone_html}" if phone_html else ""}
+
+                        <br>
+
+                        KVK 42131896
+
+                        <br><br>
+
+                        <a
+                            href="https://refixion.nl"
+                            style="color:#666666;text-decoration:none;"
+                        >
+                            refixion.nl
+                        </a>
+
+                        &nbsp;·&nbsp;
+
+                        <a
+                            href="https://refixion.nl/legal/privacy"
+                            style="color:#666666;text-decoration:none;"
+                        >
+                            Privacybeleid
+                        </a>
+
+                        &nbsp;·&nbsp;
+
+                        <a
+                            href="https://refixion.nl/legal/terms"
+                            style="color:#666666;text-decoration:none;"
+                        >
+                            Algemene voorwaarden
+                        </a>
+
+                        &nbsp;·&nbsp;
+
+                        <a
+                            href="https://refixion.nl/retourneren"
+                            style="color:#666666;text-decoration:none;"
+                        >
+                            Retourneren
+                        </a>
+
+                    </td>
+                </tr>
+
+            </table>
+
+            <div style="
+                max-width:620px;
+                padding:18px 16px;
+                font-size:11px;
+                color:#999999;
+                text-align:center;
+            ">
+                Dit is een automatisch verzonden e-mail van {business_name}.
+            </div>
+
+        </td>
+    </tr>
+
+</table>
+
+</body>
+</html>
+"""
+
+async def _send_email(
+    to_email: str,
+    subject: str,
+    html: str,
+    session: AsyncSession,
+) -> bool:
+
     settings_row = await session.get(EmailSettings, 1)
+
     if not settings_row:
-        logger.warning("SMTP not configured; skipping email to %s", to_email)
+        logger.warning(
+            "SMTP not configured; skipping email to %s",
+            to_email,
+        )
         return False
+
     settings = email_settings_to_dict(settings_row)
+
     try:
+        # Workshopgegevens ophalen voor de centrale e-mailfooter.
+        ws_row = await session.get(Workshop, "workshop-default")
+        ws = workshop_to_dict(ws_row) if ws_row else {}
+
+        # Elke uitgaande e-mail krijgt automatisch
+        # dezelfde Refixion-layout.
+        final_html = _email_layout(html, ws)
+
         msg = EmailMessage()
-        msg["From"] = f"{settings['sender_name']} <{settings['sender_email']}>"
+
+        msg["From"] = (
+            f"{settings['sender_name']} "
+            f"<{settings['sender_email']}>"
+        )
+
         msg["To"] = to_email
         msg["Subject"] = subject
+
         if settings.get("reply_to"):
             msg["Reply-To"] = settings["reply_to"]
-        msg.set_content("HTML e-mail. Bekijk deze in een moderne mailclient.")
-        msg.add_alternative(html, subtype="html")
+
+        msg.set_content(
+            "Deze e-mail bevat HTML-inhoud. "
+            "Bekijk de e-mail in een moderne mailclient."
+        )
+
+        msg.add_alternative(
+            final_html,
+            subtype="html",
+        )
+
         await aiosmtplib.send(
             msg,
             hostname=settings["smtp_host"],
@@ -381,11 +599,138 @@ async def _send_email(to_email: str, subject: str, html: str, session: AsyncSess
             password=settings["smtp_password"],
             start_tls=settings.get("use_tls", True),
         )
+
         return True
+
     except Exception as e:
-        logger.exception("SMTP send failed: %s", e)
+        logger.exception(
+            "SMTP send failed: %s",
+            e,
+        )
         return False
 
+@app.post("/shop/returns")
+async def create_return_request(payload: ReturnRequest):
+    try:
+        subject = f"Nieuwe retour-/herroepingsaanvraag – {payload.order_number}"
+
+        html = f"""
+        <html>
+        <body>
+            <h2>Nieuwe retour-/herroepingsaanvraag</h2>
+
+            <p><strong>Ordernummer:</strong> {payload.order_number}</p>
+
+            <h3>Klantgegevens</h3>
+            <p>
+                <strong>Naam:</strong> {payload.first_name} {payload.last_name}<br>
+                <strong>E-mail:</strong> {payload.email}
+            </p>
+
+            <h3>Retourgegevens</h3>
+            <p>
+                <strong>Reden:</strong> {payload.reason}<br>
+                <strong>Toelichting:</strong><br>
+                {payload.description or "Geen toelichting opgegeven."}
+            </p>
+
+            <hr>
+
+            <p>
+                Deze aanvraag is via het retourformulier van Refixion
+                binnengekomen.
+            </p>
+        </body>
+        </html>
+        """
+
+        # Hiervoor hebben we een database session nodig,
+        # omdat jouw bestaande _send_email() die verwacht.
+        from database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as session:
+            internal_to = os.environ.get(
+                "INTERNAL_NOTIFICATION_EMAIL",
+                "refixionstore@gmail.com"
+            )
+
+            sent = await _send_email(
+                internal_to,
+                subject,
+                html,
+                session,
+            )
+        if not sent:
+            raise HTTPException(
+                status_code=500,
+                detail="Retouraanvraag kon niet per e-mail worden verzonden",
+            )
+
+        customer_subject = (
+            f"Ontvangstbevestiging retour-/herroepingsaanvraag "
+            f"– {payload.order_number}"
+        )
+
+        customer_html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; color: #111111; line-height: 1.6;">
+            <h2>We hebben je retouraanvraag ontvangen</h2>
+
+            <p>Beste {payload.first_name},</p>
+
+            <p>
+                We hebben je retour-/herroepingsaanvraag voor bestelling
+                <strong>{payload.order_number}</strong> goed ontvangen.
+            </p>
+
+            <p>
+                We gaan je aanvraag beoordelen en nemen indien nodig contact
+                met je op. Bewaar je bestelgegevens en eventuele
+                verzendinformatie goed totdat de aanvraag volledig is afgehandeld.
+            </p>
+
+            <h3>Gegevens van je aanvraag</h3>
+
+            <p>
+                <strong>Ordernummer:</strong> {payload.order_number}<br>
+                <strong>Reden:</strong> {payload.reason}
+            </p>
+
+            <p>
+                Heb je nog vragen? Neem dan contact met ons op via
+                <a href="mailto:info@refixion.nl">info@refixion.nl</a>.
+            </p>
+
+            <p>
+                Met vriendelijke groet,<br>
+                <strong>Refixion</strong>
+            </p>
+        </body>
+        </html>
+        """
+
+        await _send_email(
+            payload.email,
+            customer_subject,
+            customer_html,
+            session,
+        )
+
+        return {
+            "success": True,
+            "message": "Retouraanvraag ontvangen",
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.exception("Return request failed: %s", e)
+
+        raise HTTPException(
+            status_code=500,
+            detail="Retouraanvraag kon niet worden verwerkt",
+        )
 
 @api.post("/bookings")
 async def create_booking(payload: BookingIn, request: Request, session: AsyncSession = Depends(get_session)):

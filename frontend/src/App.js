@@ -10,6 +10,7 @@ import PricingPage from "@/pages/PricingPage";
 import FAQPage from "@/pages/FAQPage";
 import ContactPage from "@/pages/ContactPage";
 import LegalPage from "@/pages/LegalPage";
+import ReturnsPage from "@/pages/ReturnsPage";
 import NotFoundPage from "@/pages/NotFoundPage";
 import BookingPage from "@/pages/BookingPage";
 import BookingSuccessPage from "@/pages/BookingSuccessPage";
@@ -59,6 +60,7 @@ function AnimatedRoutes() {
             <Route path="/shop/:slug" element={<ShopDetailPage />} />
             <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/retourneren" element={<ReturnsPage />} />
             <Route path="/legal/privacy" element={<LegalPage kind="privacy" />} />
             <Route path="/legal/terms" element={<LegalPage kind="terms" />} />
             <Route path="/legal/cookies" element={<LegalPage kind="cookies" />} />
