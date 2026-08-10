@@ -1,17 +1,22 @@
 import os
 import stripe
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime, timezone
 
+from sqlalchemy import select
+
+from database import AsyncSessionLocal
+from shop_models import Product, ProductOption, Order, OrderItem
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
 
 
-from pydantic import BaseModel, Field
+
 
 class PaymentItem(BaseModel):
     product_id: str
@@ -39,15 +44,6 @@ class CheckoutRequest(BaseModel):
 
 @router.post("/create-checkout-session")
 async def create_checkout_session(request: CheckoutRequest):
-    """
-    Maakt een Stripe Checkout Session aan.
-
-    De klant wordt doorgestuurd naar de door Stripe gehoste
-    betaalpagina.
-
-    Stripe rekent de daadwerkelijke productprijzen uit op basis
-    van de gegevens die we hier doorgeven.
-    """
     if not request.terms_accepted:
         raise HTTPException(
             status_code=400,
@@ -66,171 +62,222 @@ async def create_checkout_session(request: CheckoutRequest):
             detail="Winkelwagen is leeg"
         )
 
-    # URLs voor terugsturen na betaling.
-    # In development kan FRONTEND_URL in .env staan.
     frontend_url = os.environ.get(
         "FRONTEND_URL",
         "https://refixion.nl"
     ).rstrip("/")
 
+    FREE_SHIPPING_FROM = 80.00
+    SHIPPING_COST = 4.95
+
     try:
-        # ---------------------------------------------------------
-        # Productprijzen ophalen uit Stripe
-        # ---------------------------------------------------------
-        #
-        # BELANGRIJK:
-        # Deze versie verwacht dat je producten in Stripe als
-        # Price-objecten hebt opgeslagen en dat je frontend/backend
-        # de Stripe Price ID kent.
-        #
-        # Omdat je huidige winkelwagen alleen product_id gebruikt,
-        # gebruiken we hieronder tijdelijk de database om de
-        # producten/prijzen op te halen.
-        #
-        # Als jouw shop_routes.py al een product-prijsstructuur heeft,
-        # kunnen we deze functie daarop aansluiten.
-        # ---------------------------------------------------------
-
-        from database import AsyncSessionLocal
-        from sqlalchemy import text
-
-        line_items = []
-
         async with AsyncSessionLocal() as session:
+            line_items = []
+            order_items = []
+            subtotal = 0.0
 
+            # Producten + opties ophalen en prijzen server-side bepalen
             for item in request.items:
-
                 if item.quantity < 1:
                     raise HTTPException(
                         status_code=400,
                         detail="Ongeldige hoeveelheid"
                     )
 
-                result = await session.execute(
-                    text(
-                        """
-                        SELECT
-                            id,
-                            title,
-                            price
-                        FROM products
-                        WHERE id = :product_id
-                        """
-                    ),
-                    {
-                        "product_id": item.product_id
-                    }
-                )
+                product = await session.get(Product, item.product_id)
 
-                product = result.mappings().first()
-
-                if not product:
+                if not product or not product.enabled:
                     raise HTTPException(
                         status_code=404,
                         detail=f"Product {item.product_id} niet gevonden"
                     )
 
-                price = float(product["price"])
-
-                if price < 0:
+                if product.stock < item.quantity:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Ongeldige prijs voor product {product['title']}"
+                        detail=f"Onvoldoende voorraad voor {product.title}"
                     )
 
-                # Stripe verwacht bedragen in centen.
-                unit_amount = round(price * 100)
+                chosen_options = []
 
-                line_items.append(
-                    {
-                        "price_data": {
-                            "currency": "eur",
-                            "product_data": {
-                                "name": product["title"],
-                            },
-                            "unit_amount": unit_amount,
-                        },
-                        "quantity": item.quantity,
-                    }
+                if item.option_ids:
+                    result = await session.execute(
+                        select(ProductOption).where(
+                            ProductOption.product_id == product.id,
+                            ProductOption.id.in_(item.option_ids),
+                            ProductOption.enabled.is_(True),
+                        )
+                    )
+
+                    options = result.scalars().all()
+
+                    if len(options) != len(item.option_ids):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Ongeldige productoptie voor {product.title}"
+                        )
+
+                    chosen_options = [
+                        {
+                            "id": option.id,
+                            "name": option.name,
+                            "price": float(option.price),
+                        }
+                        for option in options
+                    ]
+
+                options_total = sum(
+                    option["price"]
+                    for option in chosen_options
                 )
 
-        # ---------------------------------------------------------
-        # Verzendkosten
-        # ---------------------------------------------------------
+                unit_price = float(product.price) + options_total
+                line_total = unit_price * item.quantity
 
-        subtotal = sum(
-            item["price_data"]["unit_amount"] * item["quantity"]
-            for item in line_items
-        )
+                subtotal += line_total
 
-        shipping_amount = 0
+                line_items.append({
+                    "price_data": {
+                        "currency": "eur",
+                        "product_data": {
+                            "name": product.title,
+                        },
+                        "unit_amount": round(unit_price * 100),
+                    },
+                    "quantity": item.quantity,
+                })
 
-        if request.shipping_method != "pickup" and subtotal < 5000:
-            shipping_amount = 495
+                order_items.append({
+                    "product_id": product.id,
+                    "product_title": product.title,
+                    "unit_price": float(product.price),
+                    "quantity": item.quantity,
+                    "options": chosen_options,
+                    "line_total": line_total,
+                })
 
-        if shipping_amount > 0:
-            line_items.append(
-                {
+            # Verzendkosten
+            shipping_cost = (
+                0.0
+                if request.shipping_method == "pickup"
+                or subtotal >= FREE_SHIPPING_FROM
+                else SHIPPING_COST
+            )
+
+            total_price = subtotal + shipping_cost
+
+            if shipping_cost > 0:
+                line_items.append({
                     "price_data": {
                         "currency": "eur",
                         "product_data": {
                             "name": "Verzendkosten",
                         },
-                        "unit_amount": shipping_amount,
+                        "unit_amount": round(shipping_cost * 100),
                     },
                     "quantity": 1,
-                }
+                })
+
+            # Ordernummer genereren
+            order_number = (
+                "RFX-"
+                + datetime.now(timezone.utc).strftime("%Y%m%d")
+                + "-"
+                + "".join(
+                    __import__("random").choices(
+                        "0123456789",
+                        k=4
+                    )
+                )
             )
 
-        # ---------------------------------------------------------
-        # Stripe Checkout Session
-        # ---------------------------------------------------------
+            # Order eerst als pending opslaan
+            order = Order(
+                order_number=order_number,
+                first_name=request.first_name,
+                last_name=request.last_name,
+                email=request.email,
+                phone=request.phone,
+                street=request.street or "",
+                house_number=request.house_number or "",
+                postal_code=request.postal_code or "",
+                city=request.city or "",
+                country=request.country,
+                shipping_method=request.shipping_method,
+                subtotal=subtotal,
+                shipping_cost=shipping_cost,
+                total_price=total_price,
+                payment_status="pending",
+                order_status="new",
+                created_at=datetime.now(timezone.utc).isoformat(),
+            )
 
-        checkout_session = stripe.checkout.Session.create(
-            mode="payment",
+            session.add(order)
+            await session.flush()
 
-            payment_method_types=[
-                "ideal",
-                "card",
-            ],
+            # Orderregels opslaan
+            for item_data in order_items:
+                session.add(
+                    OrderItem(
+                        order_id=order.id,
+                        product_id=item_data["product_id"],
+                        product_title=item_data["product_title"],
+                        unit_price=item_data["unit_price"],
+                        quantity=item_data["quantity"],
+                        options=item_data["options"],
+                        line_total=item_data["line_total"],
+                    )
+                )
 
-            customer_email=request.email,
+            # Voorraad reserveren
+            for item in request.items:
+                product = await session.get(Product, item.product_id)
+                product.stock -= item.quantity
 
-            line_items=line_items,
+            await session.flush()
 
-            billing_address_collection="required",
+            # Stripe Checkout aanmaken
+            checkout_session = stripe.checkout.Session.create(
+                mode="payment",
 
-            phone_number_collection={
-                "enabled": True,
-            },
+                payment_method_types=[
+                    "ideal",
+                    "card",
+                ],
 
-            metadata={
-                "first_name": request.first_name,
-                "last_name": request.last_name,
-                "phone": request.phone,
-                "street": request.street or "",
-                "house_number": request.house_number or "",
-                "postal_code": request.postal_code or "",
-                "city": request.city or "",
-                "country": request.country,
-                "shipping_method": request.shipping_method,
-                "terms_accepted": "true",
-            },
+                customer_email=request.email,
 
-            success_url=(
-                f"{frontend_url}/shop/betaling-gelukt"
-                "?session_id={CHECKOUT_SESSION_ID}"
-            ),
+                line_items=line_items,
 
-            cancel_url=(
-                f"{frontend_url}/checkout"
-            ),
-        )
+                billing_address_collection="required",
 
-        return {
-            "url": checkout_session.url,
-            "sessionId": checkout_session.id,
-        }
+                phone_number_collection={
+                    "enabled": True,
+                },
+
+                metadata={
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                },
+
+                success_url=(
+                    f"{frontend_url}/shop/betaling-gelukt"
+                    "?session_id={CHECKOUT_SESSION_ID}"
+                ),
+
+                cancel_url=f"{frontend_url}/checkout",
+            )
+
+            # Stripe-session aan order koppelen
+            order.stripe_session_id = checkout_session.id
+
+            await session.commit()
+
+            return {
+                "url": checkout_session.url,
+                "sessionId": checkout_session.id,
+                "orderNumber": order.order_number,
+            }
 
     except HTTPException:
         raise
@@ -299,3 +346,61 @@ async def create_payment(request: PaymentRequest):
             status_code=500,
             detail="Kon betaling niet starten"
         )
+
+@router.post("/webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+
+    endpoint_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
+
+    if not endpoint_secret:
+        raise HTTPException(
+            status_code=500,
+            detail="STRIPE_WEBHOOK_SECRET ontbreekt",
+        )
+
+    signature = request.headers.get("stripe-signature")
+
+    if not signature:
+        raise HTTPException(
+            status_code=400,
+            detail="Stripe signature ontbreekt",
+        )
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload,
+            signature,
+            endpoint_secret,
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Ongeldige webhook payload",
+        )
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(
+            status_code=400,
+            detail="Ongeldige Stripe webhook signature",
+        )
+
+    if event["type"] == "checkout.session.completed":
+        checkout_session = event["data"]["object"]
+
+        payment_status = checkout_session.get("payment_status")
+
+        if payment_status == "paid":
+            order_id = checkout_session.get("metadata", {}).get("order_id")
+
+            if order_id:
+                async with AsyncSessionLocal() as session:
+                    order = await session.get(Order, order_id)
+
+                    if order:
+                        order.payment_status = "paid"
+                        order.stripe_session_id = checkout_session["id"]
+                        order.paid_at = datetime.now(timezone.utc).isoformat()
+
+                        await session.commit()
+
+    return {"received": True}

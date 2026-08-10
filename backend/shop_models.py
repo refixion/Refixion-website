@@ -91,11 +91,33 @@ class Order(Base):
     # meegestuurd bedrag wordt nooit vertrouwd.
     total_price: Mapped[float] = mapped_column(Float, nullable=False)
 
-    payment_status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
-    order_status: Mapped[str] = mapped_column(String, nullable=False, default="new")
+    payment_status: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        default="pending",
+    )
 
-    created_at: Mapped[str] = mapped_column(Text, nullable=False)
+    order_status: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        default="new",
+    )
 
+    stripe_session_id: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+        unique=True,
+    )
+
+    paid_at: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    created_at: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
 
 class OrderItem(Base):
     __tablename__ = "order_items"
