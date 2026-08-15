@@ -1267,7 +1267,14 @@ async def admin_list_brands(_: dict = Depends(admin_only), session: AsyncSession
     rows = (await session.execute(select(Brand).order_by(Brand.order).limit(100))).scalars().all()
     return [brand_to_dict(b) for b in rows]
 
+# ------- Sendcloud Webhook -------
+@api.post("/shipping/webhook")
+async def sendcloud_webhook(request: Request):
+    data = await request.json()
 
+    logger.info("Sendcloud webhook ontvangen: %s", data)
+
+    return {"ok": True}
 # ------- Mount -------
 app.include_router(api)
 
