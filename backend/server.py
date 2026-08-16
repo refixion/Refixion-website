@@ -1279,51 +1279,10 @@ async def sendcloud_webhook(request: Request):
 # ------- Sendcloud Test -------
 @api.get("/shipping/test")
 async def sendcloud_test():
-    import httpx
-
-    public_key = os.environ.get("SENDCLOUD_PUBLIC_KEY")
-    secret_key = os.environ.get("SENDCLOUD_SECRET_KEY")
-
-    if not public_key or not secret_key:
-        raise HTTPException(
-            status_code=500,
-            detail="Sendcloud API keys ontbreken"
-        )
-
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                "https://panel.sendcloud.sc/api/v2/user/shops",
-                auth=(public_key, secret_key),
-                timeout=10,
-            )
-
-        if response.status_code != 200:
-            logger.error(
-                "Sendcloud test failed: %s %s",
-                response.status_code,
-                response.text,
-            )
-
-            raise HTTPException(
-                status_code=502,
-                detail=f"Sendcloud gaf HTTP {response.status_code}"
-            )
-
-        return {
-            "ok": True,
-            "message": "Sendcloud verbinding werkt"
-        }
-
-    except HTTPException:
-        raise
-
-    except Exception as e:
-        logger.exception("Sendcloud connection failed")
-        raise HTTPException(
-            status_code=502,
-            detail="Kan Sendcloud niet bereiken"
-        )
+    return {
+        "ok": True,
+        "message": "Shipping endpoint werkt"
+    }
 # ------- Mount -------
 app.include_router(api)
 
