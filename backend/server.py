@@ -1279,41 +1279,66 @@ async def sendcloud_webhook(request: Request):
 # ------- Sendcloud Test -------
 @api.get("/shipping/test")
 async def sendcloud_test():
+    return {
+        "ok": True,
+        "message": "Shipping endpoint werkt"
+    }
+
+@api.get("/shipping/options")
+async def sendcloud_shipping_options(
+    postal_code: str,
+    weight_kg: float = 1.0,
+):
     import httpx
 
     public_key = os.environ.get("SENDCLOUD_PUBLIC_KEY")
     secret_key = os.environ.get("SENDCLOUD_SECRET_KEY")
 
     if not public_key or not secret_key:
-        return {
-            "ok": False,
-            "error": "Sendcloud API keys ontbreken",
-            "public_key_present": bool(public_key),
-            "secret_key_present": bool(secret_key),
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="Sendcloud API keys ontbreken",
+        )
+
+    payload = {
+        "from_country_code": "NL",
+        "to_country_code": "NL",
+        "from_postal_code": "1721BB",
+        "to_postal_code": postal_code,
+        "parcels": [
+            {
+                "weight": {
+                    "value": str(weight_kg),
+                    "unit": "kg",
+                }
+            }
+        ],
+        "calculate_quotes": True,
+    }
 
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                "https://panel.sendcloud.sc/api/v2/user/shops",
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.post(
+                "https://panel.sendcloud.sc/api/v3/shipping-options",
                 auth=(public_key, secret_key),
-                timeout=10,
+                json=payload,
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
             )
 
         return {
-            "ok": response.is_success,
             "status_code": response.status_code,
-            "sendcloud_response": response.text[:1000],
+            "response": response.json(),
         }
 
     except Exception as e:
-        logger.exception("Sendcloud connection failed")
-
-        return {
-            "ok": False,
-            "error_type": type(e).__name__,
-            "error": str(e),
-        }
+        logger.exception("Sendcloud shipping options failed")
+        raise HTTPException(
+            status_code=502,
+            detail=str(e),
+        )
 # ------- Mount -------
 app.include_router(api)
 
