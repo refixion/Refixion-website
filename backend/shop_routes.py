@@ -218,11 +218,6 @@ async def create_shipping_label(
             "dpi": 72,
         },
         "from_address": {
-            "name": "Refixion",
-            "address_line_1": "Dorpsstraat 51",
-            "postal_code": "1721 BB",
-            "city": "Broek op Langedijk",
-            "country_code": "NL",
             "sender_address_id": 877819,
         },
         "to_address": {
