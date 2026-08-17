@@ -119,6 +119,36 @@ class Order(Base):
         nullable=False,
     )
 
+    sendcloud_parcel_id: Mapped[str | None] = mapped_column(
+    String,
+    nullable=True,
+    )
+
+    sendcloud_tracking_number: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+    )
+
+    sendcloud_tracking_url: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    sendcloud_label_url: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    sendcloud_shipping_option: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+    )
+
+    sendcloud_label_created_at: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
 class OrderItem(Base):
     __tablename__ = "order_items"
 

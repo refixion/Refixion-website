@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
-
+import os
+import httpx
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, select, or_
 from sqlalchemy.exc import IntegrityError
@@ -13,7 +15,7 @@ from shop_models import Product, ProductOption, Order, OrderItem
 
 
 router = APIRouter(prefix="/api/shop", tags=["Shop"])
-
+logger = logging.getLogger(__name__)
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -146,6 +148,195 @@ async def get_admin_order(
 
     return order_to_dict(order, items)
 
+@router.post("/admin/orders/{order_id}/shipping/label")
+async def create_shipping_label(
+    order_id: str,
+    _: dict = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Maakt een Sendcloud-label voor een betaalde webshoporder.
+    """
+
+    # 1. Order ophalen
+    order = await session.get(Order, order_id)
+
+    if not order:
+        raise HTTPException(
+            status_code=404,
+            detail="Order niet gevonden",
+        )
+
+    # 2. Alleen betaalde orders mogen een label krijgen
+    if order.payment_status != "paid":
+        raise HTTPException(
+            status_code=400,
+            detail="Order is nog niet betaald",
+        )
+
+    # 3. Alleen verzendorders
+    if order.shipping_method != "shipping":
+        raise HTTPException(
+            status_code=400,
+            detail="Deze order gebruikt geen verzending",
+        )
+
+    # 4. Voorkom dubbele labels
+    if order.sendcloud_label_url:
+        return {
+            "success": True,
+            "already_exists": True,
+            "message": "Voor deze order bestaat al een verzendlabel.",
+            "parcel_id": order.sendcloud_parcel_id,
+            "tracking_number": order.sendcloud_tracking_number,
+            "tracking_url": order.sendcloud_tracking_url,
+            "label_url": order.sendcloud_label_url,
+        }
+
+    # 5. Sendcloud keys ophalen
+    public_key = os.environ.get("SENDCLOUD_PUBLIC_KEY")
+    secret_key = os.environ.get("SENDCLOUD_SECRET_KEY")
+
+    if not public_key or not secret_key:
+        raise HTTPException(
+            status_code=500,
+            detail="Sendcloud API keys ontbreken",
+        )
+
+    # 6. Adresgegevens voorbereiden
+    country = order.country or "Nederland"
+
+    country_code = "NL" if country.lower() in {
+        "nl",
+        "nederland",
+        "netherlands",
+    } else country.upper()
+
+    payload = {
+        "to_address": {
+            "name": f"{order.first_name} {order.last_name}",
+            "address_line_1": order.street,
+            "house_number": order.house_number,
+            "postal_code": order.postal_code,
+            "city": order.city,
+            "country_code": country_code,
+            "phone_number": order.phone,
+            "email": order.email,
+        },
+        "ship_with": {
+            "type": "shipping_option_code",
+            "properties": {
+                "shipping_option_code": "postnl:standard",
+            },
+        },
+        "order_number": order.order_number,
+        "total_order_price": {
+            "currency": "EUR",
+            "value": f"{order.total_price:.2f}",
+        },
+        "parcels": [
+            {
+                "weight": {
+                    "value": "0.500",
+                    "unit": "kg",
+                }
+            }
+        ],
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+
+            response = await client.post(
+                "https://panel.sendcloud.sc/api/v3/shipments",
+                auth=(public_key, secret_key),
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+
+        # Sendcloud-fout
+        if response.status_code >= 400:
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "message": "Sendcloud kon het label niet maken",
+                    "sendcloud_status": response.status_code,
+                    "sendcloud_response": response.text,
+                },
+            )
+
+        data = response.json()
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.exception("Sendcloud label creation failed")
+
+        raise HTTPException(
+            status_code=502,
+            detail=f"Sendcloud verbinding mislukt: {str(e)}",
+        )
+
+    # 7. Gegevens uit Sendcloud-response halen
+    parcel = data.get("parcel") or data
+
+    parcel_id = (
+        parcel.get("id")
+        or parcel.get("parcel_id")
+    )
+
+    tracking_number = (
+        parcel.get("tracking_number")
+        or parcel.get("tracking")
+        or ""
+    )
+
+    tracking_url = (
+        parcel.get("tracking_url")
+        or ""
+    )
+
+    label_url = (
+        parcel.get("label_url")
+        or parcel.get("label", {}).get("url")
+        or ""
+    )
+
+    if not parcel_id:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": "Sendcloud gaf geen parcel ID terug",
+                "sendcloud_response": data,
+            },
+        )
+
+    # 8. Opslaan in database
+    order.sendcloud_parcel_id = str(parcel_id)
+    order.sendcloud_tracking_number = tracking_number
+    order.sendcloud_tracking_url = tracking_url
+    order.sendcloud_label_url = label_url
+    order.sendcloud_shipping_option = "postnl:standard"
+    order.sendcloud_label_created_at = _now_iso()
+
+    order.order_status = "packed"
+
+    await session.commit()
+
+    # 9. Resultaat teruggeven aan admin
+    return {
+        "success": True,
+        "already_exists": False,
+        "parcel_id": order.sendcloud_parcel_id,
+        "tracking_number": order.sendcloud_tracking_number,
+        "tracking_url": order.sendcloud_tracking_url,
+        "label_url": order.sendcloud_label_url,
+        "shipping_option": order.sendcloud_shipping_option,
+    }
 @router.put("/admin/orders/{order_id}/status")
 async def update_order_status(
     order_id: str,
@@ -309,6 +500,15 @@ def order_to_dict(o: Order, items: list[OrderItem]) -> dict:
         "subtotal": o.subtotal,
         "shipping_cost": o.shipping_cost,
         "total_price": o.total_price,
+        "shipping": {
+            "method": o.shipping_method,
+            "sendcloud_parcel_id": o.sendcloud_parcel_id,
+            "sendcloud_tracking_number": o.sendcloud_tracking_number,
+            "sendcloud_tracking_url": o.sendcloud_tracking_url,
+            "sendcloud_label_url": o.sendcloud_label_url,
+            "sendcloud_shipping_option": o.sendcloud_shipping_option,
+            "sendcloud_label_created_at": o.sendcloud_label_created_at,
+        },
         "payment_status": o.payment_status,
         "order_status": o.order_status,
         "created_at": o.created_at,
