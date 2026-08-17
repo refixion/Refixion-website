@@ -217,6 +217,9 @@ async def create_shipping_label(
             "mime_type": "application/pdf",
             "dpi": 72,
         },
+        "from_address": {
+            "id": 877819,
+        },
         "to_address": {
             "name": f"{order.first_name} {order.last_name}",
             "address_line_1": order.street,
