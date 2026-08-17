@@ -213,6 +213,10 @@ async def create_shipping_label(
     } else country.upper()
 
     payload = {
+        "label_details": {
+            "mime_type": "application/pdf",
+            "dpi": 72,
+        },
         "to_address": {
             "name": f"{order.first_name} {order.last_name}",
             "address_line_1": order.street,
@@ -246,9 +250,8 @@ async def create_shipping_label(
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-
             response = await client.post(
-                "https://panel.sendcloud.sc/api/v3/shipments",
+                "https://panel.sendcloud.sc/api/v3/shipments/announce",
                 auth=(public_key, secret_key),
                 headers={
                     "Accept": "application/json",
@@ -257,7 +260,6 @@ async def create_shipping_label(
                 json=payload,
             )
 
-        # Sendcloud-fout
         if response.status_code >= 400:
             raise HTTPException(
                 status_code=502,
@@ -281,13 +283,38 @@ async def create_shipping_label(
             detail=f"Sendcloud verbinding mislukt: {str(e)}",
         )
 
-    # 7. Gegevens uit Sendcloud-response halen
-    parcel = data.get("parcel") or data
+    # V3 response bevat het shipment-object onder "data"
+    shipment = data.get("data") or data
 
-    parcel_id = (
-        parcel.get("id")
-        or parcel.get("parcel_id")
-    )
+    # Controleer of Sendcloud de shipment daadwerkelijk heeft aangekondigd
+    errors = shipment.get("errors") or []
+
+    if errors:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": "Sendcloud heeft de shipment niet kunnen aankondigen",
+                "sendcloud_errors": errors,
+                "sendcloud_response": data,
+            },
+        )
+
+    shipment_id = shipment.get("id")
+
+    parcels = shipment.get("parcels") or []
+
+    if not shipment_id or not parcels:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": "Sendcloud gaf geen shipment/parceldetails terug",
+                "sendcloud_response": data,
+            },
+        )
+
+    parcel = parcels[0]
+
+    parcel_id = parcel.get("id")
 
     tracking_number = (
         parcel.get("tracking_number")
@@ -302,7 +329,7 @@ async def create_shipping_label(
 
     label_url = (
         parcel.get("label_url")
-        or parcel.get("label", {}).get("url")
+        or parcel.get("label", {}).get("url", "")
         or ""
     )
 
