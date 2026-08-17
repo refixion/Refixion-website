@@ -248,40 +248,35 @@ async def create_shipping_label(
         ],
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(
-                "https://panel.sendcloud.sc/api/v3/shipments/announce",
-                auth=(public_key, secret_key),
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
+try:
+    async with httpx.AsyncClient(timeout=30) as client:
 
-        if response.status_code >= 400:
-            raise HTTPException(
-                status_code=502,
-                detail={
-                    "message": "Sendcloud kon het label niet maken",
-                    "sendcloud_status": response.status_code,
-                    "sendcloud_response": response.text,
-                },
-            )
-
-        data = response.json()
-
-    except HTTPException:
-        raise
-
-    except Exception as e:
-        logger.exception("Sendcloud label creation failed")
-
-        raise HTTPException(
-            status_code=502,
-            detail=f"Sendcloud verbinding mislukt: {str(e)}",
+        response = await client.post(
+            "https://panel.sendcloud.sc/api/v3/shipments",
+            auth=(public_key, secret_key),
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            json=payload,
         )
+
+    if response.status_code >= 400:
+        return {
+            "debug": True,
+            "sendcloud_status": response.status_code,
+            "sendcloud_response": response.text,
+        }
+
+    data = response.json()
+
+except Exception as e:
+    logger.exception("Sendcloud label creation failed")
+
+    return {
+        "debug": True,
+        "error": str(e),
+    }
 
     # V3 response bevat het shipment-object onder "data"
     shipment = data.get("data") or data
