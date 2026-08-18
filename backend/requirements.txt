@@ -24,4 +24,4 @@ aiosmtplib==3.0.2
 httpx==0.28.1
 requests==2.34.2
 
-python-dotenv==1.2.2
+python-dotenv==1.2.2reportlab==5.0.0

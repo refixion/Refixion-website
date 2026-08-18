@@ -87,3 +87,59 @@ async def upload_product_image(file: UploadFile) -> str:
         raise HTTPException(status_code=502, detail="Upload naar Supabase Storage mislukt")
 
     return f"{base_url}/storage/v1/object/public/{BUCKET}/{object_path}"
+
+async def upload_invoice_pdf(pdf_data: bytes, filename: str) -> str:
+    """Uploadt een PDF-factuur naar Supabase Storage en geeft de publieke URL terug."""
+    if not pdf_data:
+        raise HTTPException(status_code=400, detail="Lege factuur")
+
+    base_url, service_key = _config()
+
+    invoice_bucket = "invoices"
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        # Facturenbucket aanmaken als die nog niet bestaat
+        resp = await client.post(
+            f"{base_url}/storage/v1/bucket",
+            json={
+                "id": invoice_bucket,
+                "name": invoice_bucket,
+                "public": True,
+            },
+            headers={
+                "Authorization": f"Bearer {service_key}",
+                "apikey": service_key,
+            },
+        )
+
+        # 200/201 = aangemaakt
+        # 400 = bestaat al
+        if resp.status_code not in (200, 201, 400):
+            raise HTTPException(
+                status_code=502,
+                detail="Kon Supabase Storage factuurbucket niet aanmaken",
+            )
+
+        object_path = filename
+
+        resp = await client.post(
+            f"{base_url}/storage/v1/object/{invoice_bucket}/{object_path}",
+            content=pdf_data,
+            headers={
+                "Authorization": f"Bearer {service_key}",
+                "apikey": service_key,
+                "Content-Type": "application/pdf",
+                "x-upsert": "true",
+            },
+        )
+
+    if resp.status_code not in (200, 201):
+        raise HTTPException(
+            status_code=502,
+            detail="Upload van factuur naar Supabase Storage mislukt",
+        )
+
+    return (
+        f"{base_url}/storage/v1/object/public/"
+        f"{invoice_bucket}/{object_path}"
+    )

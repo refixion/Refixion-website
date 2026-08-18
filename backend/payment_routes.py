@@ -5,6 +5,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, timezone
+from invoice_generator import generate_invoice_pdf
+from storage import upload_invoice_pdf
 
 from sqlalchemy import select
 
@@ -400,6 +402,45 @@ async def stripe_webhook(request: Request):
                         order.payment_status = "paid"
                         order.stripe_session_id = checkout_session["id"]
                         order.paid_at = datetime.now(timezone.utc).isoformat()
+
+                        # Factuurnummer maken
+                        if not order.invoice_number:
+                            order.invoice_number = (
+                                "RFX-"
+                                + datetime.now(timezone.utc).strftime("%Y%m%d")
+                                + "-"
+                                + "".join(
+                                    __import__("random").choices(
+                                        "0123456789",
+                                        k=4,
+                                    )
+                                )
+                            )
+
+                        # Orderregels ophalen
+                        result = await session.execute(
+                            select(OrderItem).where(
+                                OrderItem.order_id == order.id
+                            )
+                        )
+                        order_items = result.scalars().all()
+
+                        # Factuur-PDF genereren
+                        pdf_bytes = generate_invoice_pdf(
+                            order,
+                            order_items,
+                        )
+
+                        # PDF naar Supabase Storage uploaden
+                        filename = f"{order.invoice_number}.pdf"
+
+                        invoice_url = await upload_invoice_pdf(
+                            pdf_bytes,
+                            filename,
+                        )
+
+                        order.invoice_url = invoice_url
+                        order.invoice_created_at = datetime.now(timezone.utc).isoformat()
 
                         await session.commit()
 

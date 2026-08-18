@@ -178,6 +178,7 @@ export default function Footer() {
             {/* Juridische bedrijfsgegevens */}
             <li className="pt-2 text-[13px] text-[#666666]">
               KVK: 42131896
+              BTW-ID: NL005520371B37
             </li>
           </ul>
 

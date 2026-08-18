@@ -481,6 +481,10 @@ def _email_layout(content: str, ws: dict | None = None) -> str:
 
                         KVK 42131896
 
+                        <br>
+
+                        BTW-ID NL005520371B37
+
                         <br><br>
 
                         <a

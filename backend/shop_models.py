@@ -113,7 +113,21 @@ class Order(Base):
         Text,
         nullable=True,
     )
+    invoice_number: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+        unique=True,
+    )
 
+    invoice_url: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    invoice_created_at: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
     created_at: Mapped[str] = mapped_column(
         Text,
         nullable=False,
