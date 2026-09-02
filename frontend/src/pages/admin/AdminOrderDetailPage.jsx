@@ -2,6 +2,23 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 
+const PAYMENT_STATUS_LABEL = {
+  paid: "Betaald",
+  pending: "In behandeling",
+  cancelled: "Geannuleerd",
+  failed: "Mislukt",
+};
+
+const ORDER_STATUS_LABEL = {
+  new: "Nieuw",
+  processing: "In verwerking",
+  waiting_parts: "Wacht op onderdelen",
+  packed: "Ingepakt",
+  shipped: "Verzonden",
+  delivered: "Afgeleverd",
+  cancelled: "Geannuleerd",
+};
+
 export default function AdminOrderDetailPage() {
   const { id } = useParams();
   const [order, setOrder] = useState(null);
@@ -150,6 +167,15 @@ async function updateStatus(status) {
         <h2 className="font-semibold mb-4">
           Status
         </h2>
+
+        <div className="flex flex-wrap gap-2 mb-4">
+          <span className="rounded-full bg-green-100 text-green-800 px-2 py-1 text-xs font-medium">
+            {PAYMENT_STATUS_LABEL[order.payment_status] || order.payment_status || "Onbekend"}
+          </span>
+          <span className="rounded-full bg-gray-100 text-gray-700 px-2 py-1 text-xs font-medium">
+            {ORDER_STATUS_LABEL[order.order_status] || order.order_status || "Onbekend"}
+          </span>
+        </div>
 
         <select
           value={order.order_status}

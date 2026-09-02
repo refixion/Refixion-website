@@ -2,6 +2,23 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 
+const PAYMENT_STATUS_LABEL = {
+  paid: "Betaald",
+  pending: "In behandeling",
+  cancelled: "Geannuleerd",
+  failed: "Mislukt",
+};
+
+const ORDER_STATUS_LABEL = {
+  new: "Nieuw",
+  processing: "In verwerking",
+  waiting_parts: "Wacht op onderdelen",
+  packed: "Ingepakt",
+  shipped: "Verzonden",
+  delivered: "Afgeleverd",
+  cancelled: "Geannuleerd",
+};
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [q, setQ] = useState("");
@@ -90,8 +107,13 @@ export default function AdminOrdersPage() {
                   €{Number(order.total_price).toFixed(2)}
                 </div>
 
-                <div className="text-sm text-gray-500">
-                  Status: {order.order_status}
+                <div className="mt-2 flex flex-wrap gap-2 justify-end text-xs">
+                  <span className="rounded-full bg-green-100 text-green-800 px-2 py-1 font-medium">
+                    {PAYMENT_STATUS_LABEL[order.payment_status] || order.payment_status || "Onbekend"}
+                  </span>
+                  <span className="rounded-full bg-gray-100 text-gray-700 px-2 py-1 font-medium">
+                    {ORDER_STATUS_LABEL[order.order_status] || order.order_status || "Onbekend"}
+                  </span>
                 </div>
 
               </div>

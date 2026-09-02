@@ -73,6 +73,10 @@ async def admin_list_products(_: dict = Depends(get_current_admin), session: Asy
     rows = (await session.execute(select(Product).order_by(Product.created_at.desc()))).scalars().all()
     return [product_to_dict(p) for p in rows]
 
+def is_active_admin_order(order: Order) -> bool:
+    return order.payment_status == "paid"
+
+
 @router.get("/admin/orders")
 async def get_admin_orders(
     q: str = "",
@@ -83,7 +87,7 @@ async def get_admin_orders(
     session: AsyncSession = Depends(get_session),
 ):
 
-    query = select(Order)
+    query = select(Order).where(Order.payment_status == "paid")
 
     if q:
         query = query.where(
@@ -118,6 +122,7 @@ async def get_admin_orders(
                 "last_name": order.last_name,
                 "email": order.email,
                 "total_price": order.total_price,
+                "payment_status": order.payment_status,
                 "order_status": order.order_status,
                 "created_at": order.created_at,
             }

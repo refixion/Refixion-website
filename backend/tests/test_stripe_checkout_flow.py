@@ -3,6 +3,7 @@ import asyncio
 import pytest
 
 from payment_routes import handle_stripe_event
+from shop_routes import is_active_admin_order
 
 
 class FakeOrder:
@@ -101,3 +102,10 @@ async def test_missing_order_metadata_is_ignored():
 
     assert result["updated"] is False
     assert result["reason"] == "missing_order_id"
+
+
+def test_active_admin_orders_only_include_paid_orders():
+    assert is_active_admin_order(FakeOrder(payment_status="paid")) is True
+    assert is_active_admin_order(FakeOrder(payment_status="pending")) is False
+    assert is_active_admin_order(FakeOrder(payment_status="cancelled")) is False
+    assert is_active_admin_order(FakeOrder(payment_status="failed")) is False
