@@ -612,8 +612,6 @@ async def create_order(payload: dict, session: AsyncSession = Depends(get_sessio
         line_total = (product.price + options_total) * quantity
         subtotal += line_total
 
-        product.stock -= quantity  # voorraad direct reserveren bij het plaatsen van de bestelling
-
         order_items.append(OrderItem(
             product_id=product.id,
             product_title=product.title,

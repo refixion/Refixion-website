@@ -134,9 +134,14 @@ async def upload_invoice_pdf(pdf_data: bytes, filename: str) -> str:
         )
 
     if resp.status_code not in (200, 201):
+        print(
+            "SUPABASE INVOICE UPLOAD ERROR:",
+            resp.status_code,
+            resp.text,
+        )
         raise HTTPException(
             status_code=502,
-            detail="Upload van factuur naar Supabase Storage mislukt",
+            detail=f"Upload van factuur naar Supabase Storage mislukt: {resp.text}",
         )
 
     return (

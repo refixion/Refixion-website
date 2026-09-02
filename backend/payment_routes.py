@@ -1,4 +1,6 @@
+import logging
 import os
+import random
 import stripe
 
 from fastapi import APIRouter, HTTPException, Request
@@ -12,6 +14,8 @@ from sqlalchemy import select
 
 from database import AsyncSessionLocal
 from shop_models import Product, ProductOption, Order, OrderItem
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
@@ -231,11 +235,6 @@ async def create_checkout_session(request: CheckoutRequest):
                     )
                 )
 
-            # Voorraad reserveren
-            for item in request.items:
-                product = await session.get(Product, item.product_id)
-                product.stock -= item.quantity
-
             await session.flush()
 
             # Stripe Checkout aanmaken
@@ -267,7 +266,7 @@ async def create_checkout_session(request: CheckoutRequest):
                     "?session_id={CHECKOUT_SESSION_ID}"
                 ),
 
-                cancel_url=f"{frontend_url}/checkout",
+                cancel_url=f"{frontend_url}/shop/betaling-geannuleerd",
             )
 
             # Stripe-session aan order koppelen
@@ -349,6 +348,88 @@ async def create_payment(request: PaymentRequest):
             detail="Kon betaling niet starten"
         )
 
+def _get_checkout_session_order_id(checkout_session: dict) -> str | None:
+    metadata = checkout_session.get("metadata") or {}
+    if isinstance(metadata, dict):
+        return metadata.get("order_id")
+    return None
+
+
+def _generate_invoice_number() -> str:
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    suffix = "".join(random.choices("0123456789", k=4))
+    return f"RFX-{today}-{suffix}"
+
+
+async def handle_stripe_event(event: dict, session):
+    event_type = event.get("type")
+    obj = event.get("data", {}).get("object") or {}
+    order_id = _get_checkout_session_order_id(obj)
+
+    if not order_id:
+        return {"updated": False, "reason": "missing_order_id"}
+
+    order = await session.get(Order, order_id)
+    if not order:
+        return {"updated": False, "reason": "order_not_found"}
+
+    session_id = obj.get("id")
+    if session_id:
+        order.stripe_session_id = session_id
+
+    if event_type == "checkout.session.completed":
+        if order.payment_status == "paid" and order.invoice_url:
+            return {"updated": False, "reason": "already_paid"}
+
+        if order.payment_status == "paid" and not order.invoice_url:
+            order.payment_status = "paid"
+
+        order.payment_status = "paid"
+        order.paid_at = datetime.now(timezone.utc).isoformat()
+
+        if order.order_status in (None, "new"):
+            order.order_status = "processing"
+
+        result = await session.execute(
+            select(OrderItem).where(OrderItem.order_id == order.id)
+        )
+        order_items = result.scalars().all()
+
+        for item in order_items:
+            product = await session.get(Product, item.product_id)
+            if product is not None and product.stock >= 0:
+                product.stock = max(0, product.stock - item.quantity)
+
+        if not order.invoice_number:
+            order.invoice_number = _generate_invoice_number()
+
+        if not order.invoice_url:
+            pdf_bytes = generate_invoice_pdf(order, order_items)
+            filename = f"{order.invoice_number}.pdf"
+            invoice_url = await upload_invoice_pdf(pdf_bytes, filename)
+            order.invoice_url = invoice_url
+            order.invoice_created_at = datetime.now(timezone.utc).isoformat()
+
+        await session.commit()
+        return {"updated": True, "order_id": order.id, "payment_status": order.payment_status}
+
+    if event_type in {"checkout.session.expired", "checkout.session.async_payment_failed", "payment_intent.payment_failed"}:
+        if order.payment_status == "paid":
+            return {"updated": False, "reason": "paid_order_not_cancelled"}
+
+        order.payment_status = "cancelled" if event_type == "checkout.session.expired" else "failed"
+        order.order_status = "cancelled"
+        await session.commit()
+        return {
+            "updated": True,
+            "order_id": order.id,
+            "payment_status": order.payment_status,
+            "event_type": event_type,
+        }
+
+    return {"updated": False, "reason": "unsupported_event"}
+
+
 @router.post("/webhook")
 async def stripe_webhook(request: Request):
     payload = await request.body()
@@ -386,62 +467,18 @@ async def stripe_webhook(request: Request):
             detail="Ongeldige Stripe webhook signature",
         )
 
-    if event["type"] == "checkout.session.completed":
-        checkout_session = event["data"]["object"]
+    event_type = event.get("type")
+    if not event_type:
+        return {"received": True}
 
-        payment_status = checkout_session.get("payment_status")
-
-        if payment_status == "paid":
-            order_id = checkout_session.get("metadata", {}).get("order_id")
-
-            if order_id:
-                async with AsyncSessionLocal() as session:
-                    order = await session.get(Order, order_id)
-
-                    if order:
-                        order.payment_status = "paid"
-                        order.stripe_session_id = checkout_session["id"]
-                        order.paid_at = datetime.now(timezone.utc).isoformat()
-
-                        # Factuurnummer maken
-                        if not order.invoice_number:
-                            order.invoice_number = (
-                                "RFX-"
-                                + datetime.now(timezone.utc).strftime("%Y%m%d")
-                                + "-"
-                                + "".join(
-                                    __import__("random").choices(
-                                        "0123456789",
-                                        k=4,
-                                    )
-                                )
-                            )
-
-                        # Orderregels ophalen
-                        result = await session.execute(
-                            select(OrderItem).where(
-                                OrderItem.order_id == order.id
-                            )
-                        )
-                        order_items = result.scalars().all()
-
-                        # Factuur-PDF genereren
-                        pdf_bytes = generate_invoice_pdf(
-                            order,
-                            order_items,
-                        )
-
-                        # PDF naar Supabase Storage uploaden
-                        filename = f"{order.invoice_number}.pdf"
-
-                        invoice_url = await upload_invoice_pdf(
-                            pdf_bytes,
-                            filename,
-                        )
-
-                        order.invoice_url = invoice_url
-                        order.invoice_created_at = datetime.now(timezone.utc).isoformat()
-
-                        await session.commit()
+    async with AsyncSessionLocal() as session:
+        result = await handle_stripe_event(event, session)
+        logger.info(
+            "Stripe webhook handled",
+            extra={
+                "event_type": event_type,
+                "result": result,
+            },
+        )
 
     return {"received": True}
