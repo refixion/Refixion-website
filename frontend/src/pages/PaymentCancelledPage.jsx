@@ -1,9 +1,30 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { XCircle } from "lucide-react";
 import { Section } from "../components/site/primitives";
 
+const CHECKOUT_DRAFT_KEY = "refixion_checkout_draft_v1";
+
 export default function PaymentCancelledPage() {
+  const navigate = useNavigate();
+
+  const handleBackToCheckout = () => {
+    try {
+      const raw = sessionStorage.getItem(CHECKOUT_DRAFT_KEY);
+      const draft = raw ? JSON.parse(raw) : null;
+      const nextDraft = {
+        ...(draft || {}),
+        step: 3,
+        termsAccepted: false,
+      };
+      sessionStorage.setItem(CHECKOUT_DRAFT_KEY, JSON.stringify(nextDraft));
+    } catch {
+      // noop
+    }
+
+    navigate("/checkout");
+  };
+
   return (
     <Section>
       <div className="max-w-lg mx-auto text-center py-16">
@@ -20,16 +41,17 @@ export default function PaymentCancelledPage() {
         </p>
 
         <p className="mt-4 text-[13px] text-[#999999]">
-          Je kunt altijd opnieuw proberen of teruggaan naar je winkelwagen.
+          Je kunt altijd opnieuw proberen of teruggaan naar je winkelwagen. Je ingevulde gegevens worden bewaard zodat je direct weer verder kunt.
         </p>
 
         <div className="mt-8 flex justify-center gap-3 flex-wrap">
-          <Link
-            to="/checkout"
+          <button
+            type="button"
+            onClick={handleBackToCheckout}
             className="inline-flex rounded-full bg-[#111111] text-white px-6 py-3 text-[14px] font-medium hover:bg-[#333]"
           >
             Terug naar checkout
-          </Link>
+          </button>
           <Link
             to="/cart"
             className="inline-flex rounded-full border border-[#EAEAEA] px-6 py-3 text-[14px] font-medium text-[#111111] hover:bg-[#FAFAFA]"

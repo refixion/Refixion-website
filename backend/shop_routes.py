@@ -556,6 +556,29 @@ def order_to_dict(o: Order, items: list[OrderItem]) -> dict:
     }
 
 
+@router.get("/orders/session/{session_id}")
+async def get_order_by_stripe_session(session_id: str, session: AsyncSession = Depends(get_session)):
+    """Publieke statuscontrole voor de Stripe success redirect.
+
+    Alleen de backend bepaalt of een order echt betaald is. De frontend mag
+    hierdoor geen cart-clear of success claim doen op basis van redirect alleen.
+    """
+    order = (await session.execute(
+        select(Order).where(Order.stripe_session_id == session_id)
+    )).scalar_one_or_none()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order niet gevonden")
+
+    return {
+        "paid": order.payment_status == "paid",
+        "payment_status": order.payment_status,
+        "order_status": order.order_status,
+        "order_number": order.order_number,
+        "invoice_url": order.invoice_url,
+    }
+
+
 @router.post("/orders")
 async def create_order(payload: dict, session: AsyncSession = Depends(get_session)):
     """Plaatst een bestelling. Publiek endpoint — geen admin-auth, dit is de

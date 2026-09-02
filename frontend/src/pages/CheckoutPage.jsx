@@ -9,6 +9,45 @@ import { getCart, clearCart } from "../lib/cart";
 const FREE_SHIPPING_FROM = 50;
 const SHIPPING_COST = 4.95;
 const VAT_RATE = 0.21;
+const CHECKOUT_DRAFT_KEY = "refixion_checkout_draft_v1";
+
+const defaultForm = {
+  first_name: "", last_name: "", email: "", phone: "",
+  street: "", house_number: "", postal_code: "", city: "", country: "Nederland",
+  shipping_method: "shipping",
+};
+
+const readCheckoutDraft = () => {
+  try {
+    const raw = sessionStorage.getItem(CHECKOUT_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveCheckoutDraft = (formState, currentStep, accepted) => {
+  try {
+    sessionStorage.setItem(
+      CHECKOUT_DRAFT_KEY,
+      JSON.stringify({
+        form: formState,
+        step: currentStep,
+        termsAccepted: accepted,
+      })
+    );
+  } catch {
+    // sessionStorage kan in sommige browsers ontbreken, geen crash.
+  }
+};
+
+const clearCheckoutDraft = () => {
+  try {
+    sessionStorage.removeItem(CHECKOUT_DRAFT_KEY);
+  } catch {
+    // noop
+  }
+};
 
 const STEPS = [
   { key: "personal", label: "Gegevens", icon: User },
@@ -39,22 +78,23 @@ const inputClass = (hasError) =>
   `w-full rounded-xl border px-3 py-2.5 text-[14px] outline-none focus:border-[#111111] ${hasError ? "border-[#DC2626]" : "border-[#EAEAEA]"}`;
 
 export default function CheckoutPage() {
+  const draft = readCheckoutDraft();
   const [items, setItems] = useState([]);
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(draft?.step ?? 0);
   const [submitting, setSubmitting] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(draft?.termsAccepted ?? false);
   const [placedOrder, setPlacedOrder] = useState(null);
   const [errors, setErrors] = useState({});
 
-  const [form, setForm] = useState({
-    first_name: "", last_name: "", email: "", phone: "",
-    street: "", house_number: "", postal_code: "", city: "", country: "Nederland",
-    shipping_method: "shipping",
-  });
+  const [form, setForm] = useState(draft?.form ?? defaultForm);
 
   useEffect(() => {
     setItems(getCart());
   }, []);
+
+  useEffect(() => {
+    saveCheckoutDraft(form, step, termsAccepted);
+  }, [form, step, termsAccepted]);
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -97,6 +137,8 @@ const placeOrder = async () => {
   setSubmitting(true);
 
   try {
+    saveCheckoutDraft(form, step, termsAccepted);
+
     const res = await api.post("/payments/create-checkout-session", {
       ...form,
 
