@@ -4,6 +4,7 @@ import random
 import stripe
 
 from fastapi import APIRouter, HTTPException, Request
+from models import EmailSettings
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, timezone
@@ -27,7 +28,7 @@ async def _send_payment_email(
     html: str,
     session,
 ) -> bool:
-    settings_row = await session.get(shop_models.EmailSettings, 1)
+    settings_row = await session.get(EmailSettings, 1)
 
     if not settings_row:
         logger.warning(
