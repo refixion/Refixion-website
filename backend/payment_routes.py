@@ -9,15 +9,74 @@ from typing import Optional
 from datetime import datetime, timezone
 from invoice_generator import generate_invoice_pdf
 from storage import upload_invoice_pdf
+from email.message import EmailMessage
+import aiosmtplib
 
 from sqlalchemy import select
 
 from database import AsyncSessionLocal
+import shop_models
 from shop_models import Product, ProductOption, Order, OrderItem
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
+async def _send_payment_email(
+    to_email: str,
+    subject: str,
+    html: str,
+    session,
+) -> bool:
+    settings_row = await session.get(shop_models.EmailSettings, 1)
+
+    if not settings_row:
+        logger.warning(
+            "SMTP not configured; skipping payment email to %s",
+            to_email,
+        )
+        return False
+
+    try:
+        msg = EmailMessage()
+
+        msg["From"] = (
+            f"{settings_row.sender_name} "
+            f"<{settings_row.sender_email}>"
+        )
+        msg["To"] = to_email
+        msg["Subject"] = subject
+
+        if settings_row.reply_to:
+            msg["Reply-To"] = settings_row.reply_to
+
+        msg.set_content(
+            "Deze e-mail bevat HTML-inhoud. "
+            "Bekijk de e-mail in een moderne mailclient."
+        )
+
+        msg.add_alternative(
+            html,
+            subtype="html",
+        )
+
+        await aiosmtplib.send(
+            msg,
+            hostname=settings_row.smtp_host,
+            port=int(settings_row.smtp_port),
+            username=settings_row.smtp_username,
+            password=settings_row.smtp_password,
+            start_tls=settings_row.use_tls,
+        )
+
+        logger.info("Payment email sent to %s", to_email)
+        return True
+
+    except Exception as e:
+        logger.exception(
+            "Payment email failed: %s",
+            e,
+        )
+        return False
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
 
@@ -411,8 +470,139 @@ async def handle_stripe_event(event: dict, session):
             order.invoice_created_at = datetime.now(timezone.utc).isoformat()
 
         await session.commit()
-        return {"updated": True, "order_id": order.id, "payment_status": order.payment_status}
 
+        # Payment confirmation email
+        # =========================================================
+        # E-MAIL NA SUCCESVOLLE BETALING
+        # =========================================================
+
+        internal_email = os.environ.get(
+            "INTERNAL_NOTIFICATION_EMAIL",
+            "info@refixion.nl",
+        )
+
+        # ---------------------------------------------------------
+        # 1. Interne melding naar Refixion
+        # ---------------------------------------------------------
+        internal_email_html = f"""
+<h2>Nieuwe bestelling betaald</h2>
+
+<p>Er is zojuist een nieuwe bestelling succesvol betaald.</p>
+
+<table>
+    <tr>
+        <td><strong>Ordernummer:</strong></td>
+        <td>{order.order_number}</td>
+    </tr>
+    <tr>
+        <td><strong>Klant:</strong></td>
+        <td>{order.first_name} {order.last_name}</td>
+    </tr>
+    <tr>
+        <td><strong>E-mail:</strong></td>
+        <td>{order.email}</td>
+    </tr>
+    <tr>
+        <td><strong>Bedrag:</strong></td>
+        <td>€ {order.total_price:.2f}</td>
+    </tr>
+    <tr>
+        <td><strong>Factuurnummer:</strong></td>
+        <td>{order.invoice_number}</td>
+    </tr>
+    <tr>
+        <td><strong>Status:</strong></td>
+        <td>Betaald</td>
+    </tr>
+</table>
+
+<p>
+    De bestelling staat nu in het admin-dashboard.
+</p>
+"""
+
+        await _send_payment_email(
+            internal_email,
+            f"Nieuwe bestelling betaald – {order.order_number}",
+            internal_email_html,
+            session,
+        )
+
+        # ---------------------------------------------------------
+        # 2. Factuurmail naar de klant
+        # ---------------------------------------------------------
+        customer_email_html = f"""
+<h2>Bedankt voor je bestelling bij Refixion!</h2>
+
+<p>
+    Hi {order.first_name},
+</p>
+
+<p>
+    We hebben je betaling voor bestelling
+    <strong>{order.order_number}</strong> succesvol ontvangen.
+</p>
+
+<table>
+    <tr>
+        <td><strong>Ordernummer:</strong></td>
+        <td>{order.order_number}</td>
+    </tr>
+    <tr>
+        <td><strong>Factuurnummer:</strong></td>
+        <td>{order.invoice_number}</td>
+    </tr>
+    <tr>
+        <td><strong>Totaal:</strong></td>
+        <td>€ {order.total_price:.2f}</td>
+    </tr>
+</table>
+
+<p>
+    Je factuur kun je hieronder bekijken:
+</p>
+
+<p>
+    <a
+        href="{order.invoice_url}"
+        style="
+            display:inline-block;
+            padding:12px 20px;
+            background:#000;
+            color:#fff;
+            text-decoration:none;
+            border-radius:6px;
+        "
+    >
+        Bekijk je factuur
+    </a>
+</p>
+
+<p>
+    Bewaar deze factuur goed voor je administratie.
+</p>
+
+<p>
+    Bedankt voor je bestelling!
+</p>
+
+<p>
+    Groet,<br>
+    <strong>Refixion</strong>
+</p>
+"""
+
+        await _send_payment_email(
+            order.email,
+            f"Je factuur van Refixion – {order.order_number}",
+            customer_email_html,
+            session,
+        )
+        return {
+            "updated": True,
+            "order_id": order.id,
+            "payment_status": order.payment_status,
+        }
     if event_type in {"checkout.session.expired", "checkout.session.async_payment_failed", "payment_intent.payment_failed"}:
         if order.payment_status == "paid":
             return {"updated": False, "reason": "paid_order_not_cancelled"}
