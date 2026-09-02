@@ -51,10 +51,8 @@ WEBSITE = "refixion.nl"
 # Refixion-website/frontend/public/brand/refixion-logo.png
 #
 LOGO_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "frontend"
-    / "public"
-    / "brand"
+    Path(__file__).resolve().parent
+    / "assets"
     / "refixion-logo.png"
 )
 
