@@ -16,7 +16,7 @@ import shop_models
 from shop_routes import router as shop_router
 from upload_routes import router as upload_router
 from payment_routes import router as payment_router
-from deal_hunter import router as deal_hunter_router
+#from deal_hunter import router as deal_hunter_router
 
 import os
 import secrets as _secrets
@@ -115,7 +115,7 @@ api = APIRouter(prefix="/api")
 app.include_router(shop_router)
 app.include_router(upload_router)
 app.include_router(payment_router, prefix="/api")
-app.include_router(deal_hunter_router)
+#app.include_router(deal_hunter_router)
 @api.get("/debug-routes")
 async def debug_routes():
     return [str(route.path) for route in app.routes]
