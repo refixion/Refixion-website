@@ -107,19 +107,19 @@ export default function AdminDevicesPage() {
     accept=".csv"
     className="hidden"
   />
-  <Button
-    variant="outline"
+  <button
+    type="button"
     onClick={() => fileInputRef.current?.click()}
     disabled={isUploadingCsv}
-    className="flex items-center gap-2"
+    className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-800 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 disabled:opacity-50 transition-colors shadow-sm"
   >
     {isUploadingCsv ? (
-      <Loader2 className="w-4 h-4 animate-spin" />
+      <Loader2 className="w-4 h-4 animate-spin text-neutral-500" />
     ) : (
-      <UploadCloud className="w-4 h-4" />
+      <UploadCloud className="w-4 h-4 text-neutral-600" />
     )}
     <span>Verkoopprijzen CSV Uploaden</span>
-  </Button>
+  </button>
 </div>
       </div>
       <p className="text-[14px] text-[#666666]">Voeg toestellen toe per merk en stel afwijkende prijzen in per reparatie.</p>
