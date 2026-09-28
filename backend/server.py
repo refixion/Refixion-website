@@ -1376,11 +1376,10 @@ def parse_price_nl(val: str):
     """Zet '€ 65,-' of '65,00' om naar float 65.0. Negeert strings zoals 'Niet actief' of '-'"""
     if not val:
         return None
-    val_clean = val.strip()
+    val_clean = str(val).strip()
     if val_clean in ["-", "N.v.t.", ""] or "Niet actief" in val_clean or "Inbegrepen" in val_clean or "Op aanvraag" in val_clean:
         return None
     
-    # Haalt getallen eruit en vervangt komma door punt
     match = re.search(r"(\d+[\.,]\d+|\d+)", val_clean.replace(" ", ""))
     if match:
         num_str = match.group(1).replace(",", ".")
@@ -1393,8 +1392,8 @@ def parse_price_nl(val: str):
 @app.post("/api/admin/devices/import-prices-csv")
 async def import_selling_prices_csv(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    admin = Depends(get_current_admin)
+    db: Session = Depends(get_db_session),
+    current_user = Depends(require_admin)
 ):
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Bestand moet een CSV zijn.")
@@ -1438,13 +1437,13 @@ async def import_selling_prices_csv(
                 ).first()
 
                 if repair:
-                    repair.price = selling_price  # <--- Direct de verkoopprijs overschrijven
+                    repair.price = selling_price
                     updated_count += 1
                 else:
                     new_repair = models.Repair(
                         device_id=device.id,
                         title=repair_title,
-                        price=selling_price,       # <--- Direct als klantprijs opslaan
+                        price=selling_price,
                         cost_price=0.0,
                         duration_minutes=30
                     )
