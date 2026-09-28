@@ -1,10 +1,16 @@
-import React, { useEffect, useState } from "react";
-import { api } from "../../lib/api";
-import { toast } from "sonner";
-import { Trash2, Plus, DollarSign, X, Save } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useRef, useState } from "react";
-import { UploadCloud, Loader2 } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { 
+  Plus, 
+  Search, 
+  Trash2, 
+  Edit2, 
+  Check, 
+  X, 
+  ChevronRight, 
+  Smartphone, 
+  UploadCloud, 
+  Loader2 
+} from "lucide-react";
 
 export default function AdminDevicesPage() {
   const [brands, setBrands] = useState([]);
