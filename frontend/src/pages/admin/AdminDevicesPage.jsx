@@ -11,6 +11,7 @@ import {
   UploadCloud, 
   Loader2 
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function AdminDevicesPage() {
   const [brands, setBrands] = useState([]);
