@@ -1,4 +1,4 @@
-    """Refixion FastAPI backend — PostgreSQL (Supabase) version.
+"""Refixion FastAPI backend — PostgreSQL (Supabase) version.
 
     Migrated from MongoDB/Motor to SQLAlchemy (async) + asyncpg. Every endpoint keeps the
     exact same path, request body, and response body as the original Mongo-backed version.
@@ -1351,43 +1351,6 @@
     # -------------------------------------------------------------
     # CSV IMPORT VOOR VERKOOPPRIJZEN (KLANTTARIEVEN)
     # -------------------------------------------------------------
-    import csv
-    import io
-    import re
-
-    COLUMN_REPAIR_MAP = {
-        "Scherm (Origineel / OEM)": "Scherm (Origineel / OEM)",
-        "Scherm (Soft OLED)": "Scherm (Soft OLED)",
-        "Scherm (LCD / Budget)": "Scherm (LCD / Budget)",
-        "Batterij": "Batterij",
-        "Achterkant (Back glass)": "Achterkant / Behuizing",
-        "Oplaadpoort / Mic": "Oplaadpoort & Microfoon",
-        "Achter Camera module": "Achter Camera",
-        "Cameralens / Camerakas": "Cameralens",
-        "Luidspreker (Bodem)": "Luidspreker (Bodem)",
-        "Oorspeaker": "Oorspeaker",
-        "Taptic Engine (Vibratie)": "Taptic Engine",
-        "Volume Knoppen flex": "Volume Knoppen flex",
-        "Power Knop flex": "Power Knop flex",
-        "Wireless Charging Coil": "Wireless Charging Coil"
-    }
-
-    def parse_price_nl(val: str):
-        """Zet '€ 65,-' of '65,00' om naar float 65.0. Negeert strings zoals 'Niet actief' of '-'"""
-        if not val:
-            return None
-        val_clean = str(val).strip()
-        if val_clean in ["-", "N.v.t.", ""] or "Niet actief" in val_clean or "Inbegrepen" in val_clean or "Op aanvraag" in val_clean:
-            return None
-        
-        match = re.search(r"(\d+[\.,]\d+|\d+)", val_clean.replace(" ", ""))
-        if match:
-            num_str = match.group(1).replace(",", ".")
-            try:
-                return float(num_str)
-            except ValueError:
-                return None
-        return None
 
     @app.post("/api/admin/devices/import-prices-csv")
     async def import_selling_prices_csv(
@@ -1395,8 +1358,44 @@
         db = Depends(get_session),
         admin = Depends(get_current_admin)
     ):
+        import csv
+        import io
+        import re
+
         if not file.filename.endswith(".csv"):
             raise HTTPException(status_code=400, detail="Bestand moet een CSV zijn.")
+
+        column_repair_map = {
+            "Scherm (Origineel / OEM)": "Scherm (Origineel / OEM)",
+            "Scherm (Soft OLED)": "Scherm (Soft OLED)",
+            "Scherm (LCD / Budget)": "Scherm (LCD / Budget)",
+            "Batterij": "Batterij",
+            "Achterkant (Back glass)": "Achterkant / Behuizing",
+            "Oplaadpoort / Mic": "Oplaadpoort & Microfoon",
+            "Achter Camera module": "Achter Camera",
+            "Cameralens / Camerakas": "Cameralens",
+            "Luidspreker (Bodem)": "Luidspreker (Bodem)",
+            "Oorspeaker": "Oorspeaker",
+            "Taptic Engine (Vibratie)": "Taptic Engine",
+            "Volume Knoppen flex": "Volume Knoppen flex",
+            "Power Knop flex": "Power Knop flex",
+            "Wireless Charging Coil": "Wireless Charging Coil"
+        }
+
+        def parse_price(val):
+            if not val:
+                return None
+            val_clean = str(val).strip()
+            if val_clean in ["-", "N.v.t.", ""] or "Niet actief" in val_clean or "Inbegrepen" in val_clean or "Op aanvraag" in val_clean:
+                return None
+            match = re.search(r"(\d+[\.,]\d+|\d+)", val_clean.replace(" ", ""))
+            if match:
+                num_str = match.group(1).replace(",", ".")
+                try:
+                    return float(num_str)
+                except ValueError:
+                    return None
+            return None
 
         content = await file.read()
         try:
@@ -1417,17 +1416,15 @@
                 continue
             model_name = model_name.strip()
 
-            # Zoek het toestel op in de database
             device = db.query(models.Device).filter(models.Device.name.ilike(model_name)).first()
             if not device:
                 device = models.Device(name=model_name, brand="Apple", category="smartphone")
                 db.add(device)
                 db.flush()
 
-            # Update de verkoopprijs (repair.price)
-            for csv_col, repair_title in COLUMN_REPAIR_MAP.items():
+            for csv_col, repair_title in column_repair_map.items():
                 if csv_col in row:
-                    selling_price = parse_price_nl(row[csv_col])
+                    selling_price = parse_price(row[csv_col])
                     if selling_price is None:
                         continue
 
