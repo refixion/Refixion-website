@@ -1392,8 +1392,8 @@ def parse_price_nl(val: str):
 @app.post("/api/admin/devices/import-prices-csv")
 async def import_selling_prices_csv(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db_session),
-    current_user = Depends(require_admin)
+    db: Session = Depends(get_session),
+    admin = Depends(get_current_admin)
 ):
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Bestand moet een CSV zijn.")
