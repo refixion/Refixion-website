@@ -415,10 +415,33 @@ def _get_checkout_session_order_id(checkout_session: dict) -> str | None:
     return None
 
 
-def _generate_invoice_number() -> str:
-    today = datetime.now(timezone.utc).strftime("%Y%m%d")
-    suffix = "".join(random.choices("0123456789", k=4))
-    return f"RFX-{today}-{suffix}"
+async def _generate_invoice_number(session) -> str:
+    year = datetime.now(timezone.utc).year
+    prefix = f"INV-{year}-"
+
+    result = await session.execute(
+        select(Order.invoice_number)
+        .where(
+            Order.invoice_number.isnot(None),
+            Order.invoice_number.like(f"{prefix}%"),
+        )
+        .order_by(Order.invoice_number.desc())
+    )
+
+    existing_numbers = result.scalars().all()
+
+    highest_number = 0
+
+    for invoice_number in existing_numbers:
+        try:
+            number = int(invoice_number.split("-")[-1])
+            highest_number = max(highest_number, number)
+        except (ValueError, IndexError):
+            continue
+
+    next_number = highest_number + 1
+
+    return f"{prefix}{next_number:04d}"
 
 
 async def handle_stripe_event(event: dict, session):
@@ -461,7 +484,7 @@ async def handle_stripe_event(event: dict, session):
                 product.stock = max(0, product.stock - item.quantity)
 
         if not order.invoice_number:
-            order.invoice_number = _generate_invoice_number()
+            order.invoice_number = await _generate_invoice_number(session)
 
         if not order.invoice_url:
             pdf_bytes = generate_invoice_pdf(order, order_items)

@@ -11,6 +11,9 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
+import csv
+import io
+import re
 import logging
 import shop_models
 from shop_routes import router as shop_router
@@ -25,7 +28,7 @@ from email.message import EmailMessage
 from typing import Any, Dict, List, Optional
 
 import aiosmtplib
-from fastapi import Depends, FastAPI, APIRouter, HTTPException, Query, Request, Response
+from fastapi import Depends, FastAPI, APIRouter, HTTPException, Query, Request, Response, UploadFile, File
 from starlette.middleware.cors import CORSMiddleware
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -1348,3 +1351,110 @@ async def sendcloud_shipping_options(
 # ------- Mount -------
 app.include_router(api)
 
+# -------------------------------------------------------------
+# CSV IMPORT VOOR VERKOOPPRIJZEN (KLANTTARIEVEN)
+# -------------------------------------------------------------
+
+COLUMN_REPAIR_MAP = {
+    "Scherm (Origineel / OEM)": "Scherm (Origineel / OEM)",
+    "Scherm (Soft OLED)": "Scherm (Soft OLED)",
+    "Scherm (LCD / Budget)": "Scherm (LCD / Budget)",
+    "Batterij": "Batterij",
+    "Achterkant (Back glass)": "Achterkant / Behuizing",
+    "Oplaadpoort / Mic": "Oplaadpoort & Microfoon",
+    "Achter Camera module": "Achter Camera",
+    "Cameralens / Camerakas": "Cameralens",
+    "Luidspreker (Bodem)": "Luidspreker (Bodem)",
+    "Oorspeaker": "Oorspeaker",
+    "Taptic Engine (Vibratie)": "Taptic Engine",
+    "Volume Knoppen flex": "Volume Knoppen flex",
+    "Power Knop flex": "Power Knop flex",
+    "Wireless Charging Coil": "Wireless Charging Coil"
+}
+
+def parse_price_nl(val: str):
+    """Zet '€ 65,-' of '65,00' om naar float 65.0. Negeert strings zoals 'Niet actief' of '-'"""
+    if not val:
+        return None
+    val_clean = val.strip()
+    if val_clean in ["-", "N.v.t.", ""] or "Niet actief" in val_clean or "Inbegrepen" in val_clean or "Op aanvraag" in val_clean:
+        return None
+    
+    # Haalt getallen eruit en vervangt komma door punt
+    match = re.search(r"(\d+[\.,]\d+|\d+)", val_clean.replace(" ", ""))
+    if match:
+        num_str = match.group(1).replace(",", ".")
+        try:
+            return float(num_str)
+        except ValueError:
+            return None
+    return None
+
+@app.post("/api/admin/devices/import-prices-csv")
+async def import_selling_prices_csv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Bestand moet een CSV zijn.")
+
+    content = await file.read()
+    try:
+        decoded = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        decoded = content.decode("latin-1")
+
+    sample = decoded[:2048]
+    delimiter = ";" if ";" in sample and sample.count(";") > sample.count(",") else ","
+    reader = csv.DictReader(io.StringIO(decoded), delimiter=delimiter)
+
+    updated_count = 0
+    created_count = 0
+
+    for row in reader:
+        model_name = row.get("Model") or row.get("model") or row.get("Toestel")
+        if not model_name or not model_name.strip():
+            continue
+        model_name = model_name.strip()
+
+        # Zoek het toestel op in de database
+        device = db.query(models.Device).filter(models.Device.name.ilike(model_name)).first()
+        if not device:
+            device = models.Device(name=model_name, brand="Apple", category="smartphone")
+            db.add(device)
+            db.flush()
+
+        # Update de verkoopprijs (repair.price)
+        for csv_col, repair_title in COLUMN_REPAIR_MAP.items():
+            if csv_col in row:
+                selling_price = parse_price_nl(row[csv_col])
+                if selling_price is None:
+                    continue
+
+                repair = db.query(models.Repair).filter(
+                    models.Repair.device_id == device.id,
+                    models.Repair.title.ilike(repair_title)
+                ).first()
+
+                if repair:
+                    repair.price = selling_price  # <--- Direct de verkoopprijs overschrijven
+                    updated_count += 1
+                else:
+                    new_repair = models.Repair(
+                        device_id=device.id,
+                        title=repair_title,
+                        price=selling_price,       # <--- Direct als klantprijs opslaan
+                        cost_price=0.0,
+                        duration_minutes=30
+                    )
+                    db.add(new_repair)
+                    created_count += 1
+
+    db.commit()
+    return {
+        "status": "success",
+        "updated": updated_count,
+        "created": created_count,
+        "message": f"{updated_count} verkoopprijzen bijgewerkt, {created_count} nieuwe reparaties toegevoegd."
+    }
