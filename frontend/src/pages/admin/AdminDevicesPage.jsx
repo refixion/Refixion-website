@@ -3,6 +3,8 @@ import { api } from "../../lib/api";
 import { toast } from "sonner";
 import { Trash2, Plus, DollarSign, X, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRef, useState } from "react";
+import { UploadCloud, Loader2 } from "lucide-react";
 
 export default function AdminDevicesPage() {
   const [brands, setBrands] = useState([]);
@@ -11,7 +13,43 @@ export default function AdminDevicesPage() {
   const [editing, setEditing] = useState(null); // device being priced
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState({ brand_id: "", name: "", popular: false, order: 99 });
+  const fileInputRef = useRef(null);
+  const [isUploadingCsv, setIsUploadingCsv] = useState(false);
 
+  const handleCsvUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    setIsUploadingCsv(true);
+    try {
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || "";
+      const res = await fetch(`${backendUrl}/api/admin/devices/import-prices-csv`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Fout bij uploaden van CSV");
+      }
+
+      alert(data.message || "Prijzen succesvol geïmporteerd!");
+      // Ververs eventueel de lijst met apparaten/reparaties
+      if (typeof fetchDevices === "function") fetchDevices();
+    } catch (err) {
+      alert(`Fout: ${err.message}`);
+    } finally {
+      setIsUploadingCsv(false);
+      e.target.value = null;
+    }
+  };
   const loadDevices = async () => {
     const r = await api.get("/admin/devices");
     setDevices(r.data);
@@ -55,6 +93,28 @@ export default function AdminDevicesPage() {
         >
           <Plus className="h-4 w-4" strokeWidth={1.5} /> Toestel toevoegen
         </button>
+        <div className="flex items-center gap-2">
+  <input
+    type="file"
+    ref={fileInputRef}
+    onChange={handleCsvUpload}
+    accept=".csv"
+    className="hidden"
+  />
+  <Button
+    variant="outline"
+    onClick={() => fileInputRef.current?.click()}
+    disabled={isUploadingCsv}
+    className="flex items-center gap-2"
+  >
+    {isUploadingCsv ? (
+      <Loader2 className="w-4 h-4 animate-spin" />
+    ) : (
+      <UploadCloud className="w-4 h-4" />
+    )}
+    <span>Verkoopprijzen CSV Uploaden</span>
+  </Button>
+</div>
       </div>
       <p className="text-[14px] text-[#666666]">Voeg toestellen toe per merk en stel afwijkende prijzen in per reparatie.</p>
 
