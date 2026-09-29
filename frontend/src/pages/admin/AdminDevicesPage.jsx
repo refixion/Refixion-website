@@ -12,6 +12,7 @@ import {
   Loader2 
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { api } from "@/lib/api";
 
 export default function AdminDevicesPage() {
   const [brands, setBrands] = useState([]);
@@ -32,26 +33,14 @@ export default function AdminDevicesPage() {
 
     setIsUploadingCsv(true);
     try {
-      const token = localStorage.getItem("token") || localStorage.getItem("access_token");
-      const backendUrl = process.env.REACT_APP_BACKEND_URL || "";
-      const res = await fetch(`${backendUrl}/api/admin/devices/import-prices-csv`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
-        body: formData
+      const res = await api.post("/admin/devices/import-prices-csv", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "Fout bij uploaden van CSV");
-      }
-
-      alert(data.message || "Prijzen succesvol geïmporteerd!");
-      // Ververs eventueel de lijst met apparaten/reparaties
+      alert(res.data?.message || "Prijzen succesvol geïmporteerd!");
       if (typeof fetchDevices === "function") fetchDevices();
     } catch (err) {
-      alert(`Fout: ${err.message}`);
+      alert(`Fout: ${err.response?.data?.detail || err.message}`);
     } finally {
       setIsUploadingCsv(false);
       e.target.value = null;
