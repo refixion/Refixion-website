@@ -10,7 +10,11 @@ import {
   Smartphone, 
   DollarSign, 
   Clock, 
-  Layers,
+  Layers, 
+  Save, 
+  AlertCircle, 
+  Wrench, 
+  ShieldAlert, 
   UploadCloud, 
   Loader2 
 } from "lucide-react";
