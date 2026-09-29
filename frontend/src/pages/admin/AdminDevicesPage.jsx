@@ -8,6 +8,9 @@ import {
   X, 
   ChevronRight, 
   Smartphone, 
+  DollarSign, 
+  Clock, 
+  Layers,
   UploadCloud, 
   Loader2 
 } from "lucide-react";
