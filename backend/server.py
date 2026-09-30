@@ -1340,14 +1340,32 @@ async def sendcloud_shipping_options(
 app.include_router(api)
 
 # -------------------------------------------------------------
-# CSV IMPORT VOOR VERKOOPPRIJZEN (KLANTTARIEVEN)
+# CSV IMPORT VOOR TOESTELLEN EN ONDERDEEL-PRIJZEN
 # -------------------------------------------------------------
+
+REPAIR_QUALITY_MAPPING = {
+    # Kolom in CSV : (repair_id, quality_key, quality_label)
+    "Scherm (Origineel / OEM)": ("screen", "oem", "Origineel scherm (OEM)"),
+    "Scherm (Soft OLED)": ("screen", "soft_oled", "High Quality Display (Soft OLED)"),
+    "Scherm (LCD / Budget)": ("screen", "budget", "Werkend scherm (gebruikt origineel)"),
+    "Batterij": ("battery", "default", "Standaard"),
+    "Achterkant (Back glass)": ("back_glass", "default", "Standaard"),
+    "Oplaadpoort / Mic": ("charging_port", "default", "Standaard"),
+    "Achter Camera module": ("camera", "default", "Standaard"),
+    "Cameralens / Camerakas": ("camera_lens", "default", "Standaard"),
+    "Luidspreker (Bodem)": ("speaker_bottom", "default", "Standaard"),
+    "Oorspeaker": ("speaker_ear", "default", "Standaard"),
+    "Taptic Engine (Vibratie)": ("vibrator", "default", "Standaard"),
+    "Volume Knoppen flex": ("volume_flex", "default", "Standaard"),
+    "Power Knop flex": ("power_flex", "default", "Standaard"),
+    "Wireless Charging Coil": ("wireless_coil", "default", "Standaard")
+}
 
 @app.post("/api/admin/devices/import-prices-csv")
 async def import_selling_prices_csv(
-    file: UploadFile = File(...),
-    session: AsyncSession = Depends(get_session),
-    admin: dict = Depends(get_current_admin)
+    file: UploadFile = File(...),[cite: 1]
+    session: AsyncSession = Depends(get_session),[cite: 1]
+    admin: dict = Depends(get_current_admin)[cite: 1]
 ):
     import csv
     import io
@@ -1356,28 +1374,11 @@ async def import_selling_prices_csv(
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Bestand moet een CSV zijn.")
 
-    column_repair_map = {
-        "Scherm (Origineel / OEM)": "Scherm (Origineel / OEM)",
-        "Scherm (Soft OLED)": "Scherm (Soft OLED)",
-        "Scherm (LCD / Budget)": "Scherm (LCD / Budget)",
-        "Batterij": "Batterij",
-        "Achterkant (Back glass)": "Achterkant / Behuizing",
-        "Oplaadpoort / Mic": "Oplaadpoort & Microfoon",
-        "Achter Camera module": "Achter Camera",
-        "Cameralens / Camerakas": "Cameralens",
-        "Luidspreker (Bodem)": "Luidspreker (Bodem)",
-        "Oorspeaker": "Oorspeaker",
-        "Taptic Engine (Vibratie)": "Taptic Engine",
-        "Volume Knoppen flex": "Volume Knoppen flex",
-        "Power Knop flex": "Power Knop flex",
-        "Wireless Charging Coil": "Wireless Charging Coil"
-    }
-
     def parse_price(val):
         if not val:
             return None
         val_clean = str(val).strip()
-        if val_clean in ["-", "N.v.t.", ""] or "Niet actief" in val_clean or "Inbegrepen" in val_clean or "Op aanvraag" in val_clean:
+        if val_clean in ["-", "N.v.t.", ""] or "Niet actief" in val_clean or "Op aanvraag" in val_clean:
             return None
         match = re.search(r"(\d+[\.,]\d+|\d+)", val_clean.replace(" ", ""))
         if match:
@@ -1396,63 +1397,77 @@ async def import_selling_prices_csv(
 
     sample = decoded[:2048]
     delimiter = ";" if ";" in sample and sample.count(";") > sample.count(",") else ","
-    reader = csv.DictReader(io.StringIO(decoded), delimiter=delimiter)
+    rows = list(csv.DictReader(io.StringIO(decoded), delimiter=delimiter))
 
     updated_count = 0
     created_count = 0
 
-    for row in reader:
+    # Als de CSV begint met iPhone X en eindigt met iPhone 17:
+    # Draai de lijst om zodat de 17-serie als eerste wordt behandeld en order=1 krijgt.
+    # (Als je de iPhone 17 al handmatig bovenaan in de sheet zet, haal je [::-1] weg)
+    ordered_rows = rows[::-1]
+
+    for index, row in enumerate(ordered_rows, start=1):
         model_name = row.get("Model") or row.get("model") or row.get("Toestel")
         if not model_name or not model_name.strip():
             continue
         model_name = model_name.strip()
 
-        stmt_dev = select(Device).where(Device.name.ilike(model_name)).limit(1)
-        device = (await session.execute(stmt_dev)).scalar_one_or_none()
+        # 1. Zoek toestel of maak het nieuw aan
+        stmt_dev = select(Device).where(Device.name.ilike(model_name)).limit(1)[cite: 1]
+        device = (await session.execute(stmt_dev)).scalar_one_or_none()[cite: 1]
+        
         if not device:
-            device = Device(id=f"dev-{new_id()[:8]}", name=model_name, brand_id="brand-apple", enabled=True)
-            session.add(device)
-            await session.flush()
+            device = Device(
+                id=f"dev-{new_id()[:8]}",[cite: 1]
+                name=model_name, 
+                brand_id="brand-apple",[cite: 1]
+                order=index,  # iPhone 17 krijgt hier direct order=1
+                popular=False,[cite: 1]
+                enabled=True[cite: 1]
+            )
+            session.add(device)[cite: 1]
+            await session.flush()[cite: 1]
+        else:
+            # Bestaand toestel ook de juiste volgorde meegeven
+            device.order = index[cite: 1]
 
-        for csv_col, repair_title in column_repair_map.items():
+        # 2. Vul de onderdeel-prijzen in
+        for csv_col, (rep_id, q_key, q_label) in REPAIR_QUALITY_MAPPING.items():
             if csv_col in row:
                 selling_price = parse_price(row[csv_col])
                 if selling_price is None:
                     continue
 
-                stmt_rep = select(Repair).where(Repair.name.ilike(repair_title)).limit(1)
-                repair_obj = (await session.execute(stmt_rep)).scalar_one_or_none()
-                if not repair_obj:
-                    repair_obj = Repair(id=f"rep-{new_id()[:8]}", name=repair_title, enabled=True)
-                    session.add(repair_obj)
-                    await session.flush()
-
                 stmt_po = select(PartOption).where(
-                    PartOption.device_id == device.id,
-                    PartOption.repair_id == repair_obj.id
-                ).limit(1)
-                part_opt = (await session.execute(stmt_po)).scalar_one_or_none()
+                    PartOption.device_id == device.id,[cite: 1]
+                    PartOption.repair_id == rep_id,[cite: 1]
+                    PartOption.quality_key == q_key[cite: 1]
+                ).limit(1)[cite: 1]
+                part_opt = (await session.execute(stmt_po)).scalar_one_or_none()[cite: 1]
 
                 if part_opt:
-                    part_opt.price_eur = selling_price
+                    part_opt.price_eur = selling_price[cite: 1]
+                    part_opt.enabled = True[cite: 1]
                     updated_count += 1
                 else:
                     new_po = PartOption(
-                        id=f"po-{device.id}-{repair_obj.id}-default",
-                        device_id=device.id,
-                        repair_id=repair_obj.id,
-                        quality_key="default",
-                        quality_label=repair_title,
-                        price_eur=selling_price,
-                        enabled=True
+                        id=f"po-{device.id}-{rep_id}-{q_key}",[cite: 1]
+                        device_id=device.id,[cite: 1]
+                        repair_id=rep_id,[cite: 1]
+                        quality_key=q_key,[cite: 1]
+                        quality_label=q_label,[cite: 1]
+                        price_eur=selling_price,[cite: 1]
+                        order=1,[cite: 1]
+                        enabled=True[cite: 1]
                     )
-                    session.add(new_po)
+                    session.add(new_po)[cite: 1]
                     created_count += 1
 
-    await session.commit()
+    await session.commit()[cite: 1]
     return {
         "status": "success",
         "updated": updated_count,
         "created": created_count,
-        "message": f"{updated_count} verkoopprijzen bijgewerkt, {created_count} nieuwe opties toegevoegd."
+        "message": f"Succesvol! {updated_count} bestaande prijzen bijgewerkt en {created_count} nieuwe opties aangemaakt."
     }
