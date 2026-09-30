@@ -46,7 +46,7 @@ export default function AdminDevicesPage() {
       });
 
       alert(res.data?.message || "Prijzen succesvol geïmporteerd!");
-      if (typeof fetchDevices === "function") fetchDevices();
+      loadDevices();
     } catch (err) {
       alert(`Fout: ${err.response?.data?.detail || err.message}`);
     } finally {

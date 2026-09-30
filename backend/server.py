@@ -990,7 +990,7 @@ async def admin_update_repair(repair_id: str, payload: Dict[str, Any], _: dict =
 # device CRUD
 @api.get("/admin/devices")
 async def admin_list_devices(_: dict = Depends(admin_only), session: AsyncSession = Depends(get_session)):
-    rows = (await session.execute(select(Device).limit(1000))).scalars().all()
+    rows = (await session.execute(select(Device).order_by(Device.order).limit(1000))).scalars().all()
     return [device_to_dict(d) for d in rows]
 
 
@@ -1507,22 +1507,22 @@ async def import_selling_prices_csv(
         p_water = float(diag_nums[1]) if len(diag_nums) >= 2 else 49.0
 
         targets = [
-            ("diagnosis", "default", "Standaard", p_diag, 0, "Geen garantie"),
-            ("water", "default", "Standaard", p_water, 30, "30 dagen garantie"),
-            ("screen", "oem", "Origineel scherm (OEM)", parse_price(row.get("Scherm (Origineel / OEM)")), 365, "12 maanden garantie"),
-            ("screen", "soft_oled", "High Quality Display (Soft OLED)", parse_price(row.get("Scherm (Soft OLED)")), 365, "12 maanden garantie"),
-            ("screen", "budget", "Werkend scherm (gebruikt origineel)", parse_price(row.get("Scherm (LCD / Budget)")), 30, "30 dagen garantie"),
-            ("battery", "default", "Standaard", parse_price(row.get("Batterij")), 365, "12 maanden garantie"),
-            ("backhousing", "default", "Standaard", parse_price(row.get("Achterkant (Back glass)")), 365, "12 maanden garantie"),
-            ("charging", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic")), 365, "12 maanden garantie"),
-            ("microphone", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic")), 365, "12 maanden garantie"),
-            ("camera", "default", "Standaard", parse_price(row.get("Achter Camera module")), 365, "12 maanden garantie"),
-            ("cameralens", "default", "Standaard", parse_price(row.get("Cameralens (Glas)")), 365, "12 maanden garantie"),
-            ("speaker", "default", "Standaard", parse_price(row.get("Luidspreker (Bodem)")), 365, "12 maanden garantie"),
-            ("earpiece", "default", "Standaard", parse_price(row.get("Oorspeaker")), 365, "12 maanden garantie"),
-            ("vibration", "default", "Standaard", parse_price(row.get("Taptic Engine (Vibratie)")), 365, "12 maanden garantie"),
-            ("buttons", "default", "Standaard", btn_price, 365, "12 maanden garantie"),
-            ("faceid", "default", "Standaard", parse_price(row.get("Face ID / Touch ID")), 365, "12 maanden garantie"),
+            ("screen", "oem", "Origineel scherm (OEM)", parse_price(row.get("Scherm (Origineel / OEM)")), 365, "12 maanden garantie", 1),
+            ("screen", "soft_oled", "High Quality Display (Soft OLED)", parse_price(row.get("Scherm (Soft OLED)")), 365, "12 maanden garantie", 2),
+            ("screen", "budget", "Budget Display (LCD / Incell)", parse_price(row.get("Scherm (LCD / Budget)")), 30, "30 dagen garantie", 3),
+            ("battery", "default", "Standaard", parse_price(row.get("Batterij")), 365, "12 maanden garantie", 1),
+            ("backhousing", "default", "Standaard", parse_price(row.get("Achterkant (Back glass)")), 365, "12 maanden garantie", 1),
+            ("charging", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic")), 365, "12 maanden garantie", 1),
+            ("camera", "default", "Standaard", parse_price(row.get("Achter Camera module")), 365, "12 maanden garantie", 1),
+            ("cameralens", "default", "Standaard", parse_price(row.get("Cameralens (Glas)")), 365, "12 maanden garantie", 1),
+            ("speaker", "default", "Standaard", parse_price(row.get("Luidspreker (Bodem)")), 365, "12 maanden garantie", 1),
+            ("earpiece", "default", "Standaard", parse_price(row.get("Oorspeaker")), 365, "12 maanden garantie", 1),
+            ("microphone", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic")), 365, "12 maanden garantie", 1),
+            ("vibration", "default", "Standaard", parse_price(row.get("Taptic Engine (Vibratie)")), 365, "12 maanden garantie", 1),
+            ("buttons", "default", "Standaard", btn_price, 365, "12 maanden garantie", 1),
+            ("faceid", "default", "Standaard", parse_price(row.get("Face ID / Touch ID")), 365, "12 maanden garantie", 1),
+            ("water", "default", "Standaard", p_water, 30, "30 dagen garantie", 1),
+            ("diagnosis", "default", "Standaard", p_diag, 0, "Geen garantie", 1),
         ]
 
         for rep_id, q_key, q_label, price_val, w_days, w_label in targets:
