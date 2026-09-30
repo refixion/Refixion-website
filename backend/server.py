@@ -1371,7 +1371,7 @@ REPAIR_QUALITY_MAPPING = {
     "Wireless Charging Coil": ("wireless_coil", "default", "Standaard")
 }
 # -------------------------------------------------------------
-# DEFINITIEVE CSV IMPORT: VOLLEDIGE SCHOONMAAK + PERFECTE MAPPING
+# DEFINITIEVE CSV IMPORT MET DIRECTE FLUSH & UNIEKE PRIMARY KEYS
 # -------------------------------------------------------------
 
 @app.post("/api/admin/devices/import-prices-csv")
@@ -1414,7 +1414,7 @@ async def import_selling_prices_csv(
     delimiter = ";" if ";" in sample and sample.count(";") > sample.count(",") else ","
     rows = list(csv.DictReader(io.StringIO(decoded), delimiter=delimiter))
 
-    # 1. Zorg dat alle repair types in de repairs tabel staan om foreign key fouten te voorkomen
+    # 1. Zorg dat alle repair types in de repairs tabel staan
     existing_repairs_res = await session.execute(select(Repair.id))
     valid_repair_ids = set(existing_repairs_res.scalars().all())
 
@@ -1452,7 +1452,7 @@ async def import_selling_prices_csv(
             except Exception:
                 await session.rollback()
 
-    # 2. Haal bestaande apparaten op en verwijder dubbele apparaten
+    # 2. Haal bestaande apparaten op en ruim duplicaten op
     existing_devices_query = await session.execute(select(Device))
     all_existing_devices = existing_devices_query.scalars().all()
 
@@ -1467,86 +1467,84 @@ async def import_selling_prices_csv(
             await session.execute(delete(PartOption).where(PartOption.device_id == extra_dev.id))
             await session.delete(extra_dev)
 
-    # 3. Draai om: iPhone 17 serie onderaan in CSV wordt positie 1 t/m 4, iPhone X wordt positie 33
+    # 3. Draai rijen om: iPhone 17 serie onderaan in CSV wordt positie 1 t/m 4, iPhone X wordt 33
     ordered_rows = rows[::-1]
+
+    # Verwijder direct ALLE oude vervuilde part_options in één klap zodat de database brandschoon is
+    await session.execute(delete(PartOption))
+    await session.flush()
 
     created_options_count = 0
 
-    with session.no_autoflush:
-        for current_order, row in enumerate(ordered_rows, start=1):
-            model_name = (row.get("Model") or row.get("model") or row.get("Toestel") or "").strip()
-            if not model_name:
+    for current_order, row in enumerate(ordered_rows, start=1):
+        model_name = (row.get("Model") or row.get("model") or row.get("Toestel") or "").strip()
+        if not model_name:
+            continue
+        lookup_key = model_name.lower()
+
+        device = device_lookup.get(lookup_key)
+        if not device:
+            device = Device(
+                id=f"dev-{new_id()[:8]}",
+                name=model_name,
+                brand_id="brand-apple",
+                order=current_order,
+                popular=False,
+                enabled=True
+            )
+            session.add(device)
+            await session.flush()
+            device_lookup[lookup_key] = device
+        else:
+            device.order = current_order
+
+        # Prijzen uit CSV parsen
+        btn_price = parse_price(row.get("Volume Knoppen flex")) or parse_price(row.get("Power Knop flex"))
+        
+        water_diag_raw = str(row.get("Waterschade reiniging / diagnose", ""))
+        diag_nums = re.findall(r"(\d+)", water_diag_raw.replace(" ", ""))
+        p_diag = float(diag_nums[0]) if len(diag_nums) >= 1 else 39.0
+        p_water = float(diag_nums[1]) if len(diag_nums) >= 2 else 49.0
+
+        targets = [
+            ("diagnosis", "default", "Standaard", p_diag, 0, "Geen garantie"),
+            ("water", "default", "Standaard", p_water, 30, "30 dagen garantie"),
+            ("screen", "oem", "Origineel scherm (OEM)", parse_price(row.get("Scherm (Origineel / OEM)")), 365, "12 maanden garantie"),
+            ("screen", "soft_oled", "High Quality Display (Soft OLED)", parse_price(row.get("Scherm (Soft OLED)")), 365, "12 maanden garantie"),
+            ("screen", "budget", "Werkend scherm (gebruikt origineel)", parse_price(row.get("Scherm (LCD / Budget)")), 30, "30 dagen garantie"),
+            ("battery", "default", "Standaard", parse_price(row.get("Batterij")), 365, "12 maanden garantie"),
+            ("backhousing", "default", "Standaard", parse_price(row.get("Achterkant (Back glass)")), 365, "12 maanden garantie"),
+            ("charging", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic")), 365, "12 maanden garantie"),
+            ("microphone", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic")), 365, "12 maanden garantie"),
+            ("camera", "default", "Standaard", parse_price(row.get("Achter Camera module")), 365, "12 maanden garantie"),
+            ("cameralens", "default", "Standaard", parse_price(row.get("Cameralens (Glas)")), 365, "12 maanden garantie"),
+            ("speaker", "default", "Standaard", parse_price(row.get("Luidspreker (Bodem)")), 365, "12 maanden garantie"),
+            ("earpiece", "default", "Standaard", parse_price(row.get("Oorspeaker")), 365, "12 maanden garantie"),
+            ("vibration", "default", "Standaard", parse_price(row.get("Taptic Engine (Vibratie)")), 365, "12 maanden garantie"),
+            ("buttons", "default", "Standaard", btn_price, 365, "12 maanden garantie"),
+            ("faceid", "default", "Standaard", parse_price(row.get("Face ID / Touch ID")), 365, "12 maanden garantie"),
+        ]
+
+        for rep_id, q_key, q_label, price_val, w_days, w_label in targets:
+            if rep_id not in valid_repair_ids:
                 continue
-            lookup_key = model_name.lower()
 
-            # Zoek of maak device
-            device = device_lookup.get(lookup_key)
-            if not device:
-                device = Device(
-                    id=f"dev-{new_id()[:8]}",
-                    name=model_name,
-                    brand_id="brand-apple",
-                    order=current_order,
-                    popular=False,
-                    enabled=True
-                )
-                session.add(device)
-                await session.flush()
-                device_lookup[lookup_key] = device
-            else:
-                device.order = current_order
-
-            # VERWIJDER ALLE OUDE VERVUILING EN DUBBELE OPTIES VOOR DIT TOESTEL
-            await session.execute(delete(PartOption).where(PartOption.device_id == device.id))
-
-            # Prijzen uit CSV parsen
-            btn_price = parse_price(row.get("Volume Knoppen flex")) or parse_price(row.get("Power Knop flex"))
-            
-            water_diag_raw = str(row.get("Waterschade reiniging / diagnose", ""))
-            diag_nums = re.findall(r"(\d+)", water_diag_raw.replace(" ", ""))
-            p_diag = float(diag_nums[0]) if len(diag_nums) >= 1 else 39.0
-            p_water = float(diag_nums[1]) if len(diag_nums) >= 2 else 49.0
-
-            # Exacte lijst van 16 reparaties in de gewenste volgorde
-            targets = [
-                ("diagnosis", "default", "Standaard", p_diag, 0, "Geen garantie"),
-                ("water", "default", "Standaard", p_water, 30, "30 dagen garantie"),
-                ("screen", "oem", "Origineel scherm (OEM)", parse_price(row.get("Scherm (Origineel / OEM)")), 365, "12 maanden garantie"),
-                ("screen", "soft_oled", "High Quality Display (Soft OLED)", parse_price(row.get("Scherm (Soft OLED)")), 365, "12 maanden garantie"),
-                ("screen", "budget", "Werkend scherm (gebruikt origineel)", parse_price(row.get("Scherm (LCD / Budget)")), 30, "30 dagen garantie"),
-                ("battery", "default", "Standaard", parse_price(row.get("Batterij")), 365, "12 maanden garantie"),
-                ("backhousing", "default", "Standaard", parse_price(row.get("Achterkant (Back glass)")), 365, "12 maanden garantie"),
-                ("charging", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic")), 365, "12 maanden garantie"),
-                ("microphone", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic")), 365, "12 maanden garantie"),
-                ("camera", "default", "Standaard", parse_price(row.get("Achter Camera module")), 365, "12 maanden garantie"),
-                ("cameralens", "default", "Standaard", parse_price(row.get("Cameralens (Glas)")), 365, "12 maanden garantie"),
-                ("speaker", "default", "Standaard", parse_price(row.get("Luidspreker (Bodem)")), 365, "12 maanden garantie"),
-                ("earpiece", "default", "Standaard", parse_price(row.get("Oorspeaker")), 365, "12 maanden garantie"),
-                ("vibration", "default", "Standaard", parse_price(row.get("Taptic Engine (Vibratie)")), 365, "12 maanden garantie"),
-                ("buttons", "default", "Standaard", btn_price, 365, "12 maanden garantie"),
-                ("faceid", "default", "Standaard", parse_price(row.get("Face ID / Touch ID")), 365, "12 maanden garantie"),
-            ]
-
-            # Voeg voor elk toestel exact 1 schone rij per optie in
-            for rep_id, q_key, q_label, price_val, w_days, w_label in targets:
-                if rep_id not in valid_repair_ids:
-                    continue
-
-                new_po = PartOption(
-                    id=f"po-{device.id[:8]}-{rep_id}-{q_key}",
-                    device_id=device.id,
-                    repair_id=rep_id,
-                    quality_key=q_key,
-                    quality_label=q_label,
-                    price_eur=price_val,
-                    warranty_days=w_days,
-                    warranty_label=w_label,
-                    on_request=(price_val is None),
-                    order=1,
-                    enabled=True
-                )
-                session.add(new_po)
-                created_options_count += 1
+            # Altijd een gegarandeerd unieke ID genereren zodat pkey NOOIT kan botsen
+            new_po = PartOption(
+                id=f"po-{new_id()[:12]}",
+                device_id=device.id,
+                repair_id=rep_id,
+                quality_key=q_key,
+                quality_label=q_label,
+                price_eur=price_val,
+                warranty_days=w_days,
+                warranty_label=w_label,
+                on_request=(price_val is None),
+                order=1,
+                enabled=True
+            )
+            session.add(new_po)
+            created_options_count += 1
 
     await session.commit()
     return {
