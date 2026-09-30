@@ -1363,9 +1363,9 @@ REPAIR_QUALITY_MAPPING = {
 
 @app.post("/api/admin/devices/import-prices-csv")
 async def import_selling_prices_csv(
-    file: UploadFile = File(...),[cite: 1]
-    session: AsyncSession = Depends(get_session),[cite: 1]
-    admin: dict = Depends(get_current_admin)[cite: 1]
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
+    admin: dict = Depends(get_current_admin)
 ):
     import csv
     import io
@@ -1402,9 +1402,7 @@ async def import_selling_prices_csv(
     updated_count = 0
     created_count = 0
 
-    # Als de CSV begint met iPhone X en eindigt met iPhone 17:
-    # Draai de lijst om zodat de 17-serie als eerste wordt behandeld en order=1 krijgt.
-    # (Als je de iPhone 17 al handmatig bovenaan in de sheet zet, haal je [::-1] weg)
+    # Draai om zodat de nieuwste modellen onderaan in de sheet order=1 krijgen
     ordered_rows = rows[::-1]
 
     for index, row in enumerate(ordered_rows, start=1):
@@ -1414,23 +1412,22 @@ async def import_selling_prices_csv(
         model_name = model_name.strip()
 
         # 1. Zoek toestel of maak het nieuw aan
-        stmt_dev = select(Device).where(Device.name.ilike(model_name)).limit(1)[cite: 1]
-        device = (await session.execute(stmt_dev)).scalar_one_or_none()[cite: 1]
+        stmt_dev = select(Device).where(Device.name.ilike(model_name)).limit(1)
+        device = (await session.execute(stmt_dev)).scalar_one_or_none()
         
         if not device:
             device = Device(
-                id=f"dev-{new_id()[:8]}",[cite: 1]
+                id=f"dev-{new_id()[:8]}",
                 name=model_name, 
-                brand_id="brand-apple",[cite: 1]
-                order=index,  # iPhone 17 krijgt hier direct order=1
-                popular=False,[cite: 1]
-                enabled=True[cite: 1]
+                brand_id="brand-apple",
+                order=index,
+                popular=False,
+                enabled=True
             )
-            session.add(device)[cite: 1]
-            await session.flush()[cite: 1]
+            session.add(device)
+            await session.flush()
         else:
-            # Bestaand toestel ook de juiste volgorde meegeven
-            device.order = index[cite: 1]
+            device.order = index
 
         # 2. Vul de onderdeel-prijzen in
         for csv_col, (rep_id, q_key, q_label) in REPAIR_QUALITY_MAPPING.items():
@@ -1440,31 +1437,31 @@ async def import_selling_prices_csv(
                     continue
 
                 stmt_po = select(PartOption).where(
-                    PartOption.device_id == device.id,[cite: 1]
-                    PartOption.repair_id == rep_id,[cite: 1]
-                    PartOption.quality_key == q_key[cite: 1]
-                ).limit(1)[cite: 1]
-                part_opt = (await session.execute(stmt_po)).scalar_one_or_none()[cite: 1]
+                    PartOption.device_id == device.id,
+                    PartOption.repair_id == rep_id,
+                    PartOption.quality_key == q_key
+                ).limit(1)
+                part_opt = (await session.execute(stmt_po)).scalar_one_or_none()
 
                 if part_opt:
-                    part_opt.price_eur = selling_price[cite: 1]
-                    part_opt.enabled = True[cite: 1]
+                    part_opt.price_eur = selling_price
+                    part_opt.enabled = True
                     updated_count += 1
                 else:
                     new_po = PartOption(
-                        id=f"po-{device.id}-{rep_id}-{q_key}",[cite: 1]
-                        device_id=device.id,[cite: 1]
-                        repair_id=rep_id,[cite: 1]
-                        quality_key=q_key,[cite: 1]
-                        quality_label=q_label,[cite: 1]
-                        price_eur=selling_price,[cite: 1]
-                        order=1,[cite: 1]
-                        enabled=True[cite: 1]
+                        id=f"po-{device.id}-{rep_id}-{q_key}",
+                        device_id=device.id,
+                        repair_id=rep_id,
+                        quality_key=q_key,
+                        quality_label=q_label,
+                        price_eur=selling_price,
+                        order=1,
+                        enabled=True
                     )
-                    session.add(new_po)[cite: 1]
+                    session.add(new_po)
                     created_count += 1
 
-    await session.commit()[cite: 1]
+    await session.commit()
     return {
         "status": "success",
         "updated": updated_count,
