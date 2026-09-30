@@ -1374,6 +1374,10 @@ REPAIR_QUALITY_MAPPING = {
 # DEFINITIEVE CSV IMPORT: VEILIGE REPAIRS EN PART_OPTIONS
 # -------------------------------------------------------------
 
+# -------------------------------------------------------------
+# DEFINITIEVE CSV IMPORT MET EXACTE GARANTIE- EN PRIJSLOGICA
+# -------------------------------------------------------------
+
 @app.post("/api/admin/devices/import-prices-csv")
 async def import_selling_prices_csv(
     file: UploadFile = File(...),
@@ -1414,7 +1418,7 @@ async def import_selling_prices_csv(
     delimiter = ";" if ";" in sample and sample.count(";") > sample.count(",") else ","
     rows = list(csv.DictReader(io.StringIO(decoded), delimiter=delimiter))
 
-    # 1. Zorg dat alle benodigde repair_ids gegarandeerd in de 'repairs' tabel bestaan
+    # 1. Zorg dat alle benodigde repair_ids in de repairs tabel staan
     existing_repairs_res = await session.execute(select(Repair.id))
     valid_repair_ids = set(existing_repairs_res.scalars().all())
 
@@ -1452,7 +1456,7 @@ async def import_selling_prices_csv(
             except Exception:
                 await session.rollback()
 
-    # 2. Haal bestaande apparaten op en ruim dubbele records op
+    # 2. Haal bestaande apparaten op en verwijder dubbele entries
     existing_devices_query = await session.execute(select(Device))
     all_existing_devices = existing_devices_query.scalars().all()
 
@@ -1467,7 +1471,7 @@ async def import_selling_prices_csv(
             await session.execute(delete(PartOption).where(PartOption.device_id == extra_dev.id))
             await session.delete(extra_dev)
 
-    # 3. Draai rijen om: iPhone 17 Pro Max (onderaan in CSV) krijgt positie 1
+    # 3. CSV omdraaien: nieuwste modellen (onderaan CSV) op positie 1
     ordered_rows = rows[::-1]
 
     updated_count = 0
@@ -1506,27 +1510,27 @@ async def import_selling_prices_csv(
             p_diag = float(diag_nums[0]) if len(diag_nums) >= 1 else 39.0
             p_water = float(diag_nums[1]) if len(diag_nums) >= 2 else 49.0
 
+            # (repair_id, quality_key, quality_label, price, warranty_days, warranty_label)
             targets = [
-                ("diagnosis", "default", "Standaard", p_diag),
-                ("water", "default", "Standaard", p_water),
-                ("screen", "oem", "Origineel scherm (OEM)", parse_price(row.get("Scherm (Origineel / OEM)"))),
-                ("screen", "soft_oled", "High Quality Display (Soft OLED)", parse_price(row.get("Scherm (Soft OLED)"))),
-                ("screen", "budget", "Werkend scherm (gebruikt origineel)", parse_price(row.get("Scherm (LCD / Budget)"))),
-                ("battery", "default", "Standaard", parse_price(row.get("Batterij"))),
-                ("backhousing", "default", "Standaard", parse_price(row.get("Achterkant (Back glass)"))),
-                ("charging", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic"))),
-                ("microphone", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic"))),
-                ("camera", "default", "Standaard", parse_price(row.get("Achter Camera module"))),
-                ("cameralens", "default", "Standaard", parse_price(row.get("Cameralens (Glas)"))),
-                ("speaker", "default", "Standaard", parse_price(row.get("Luidspreker (Bodem)"))),
-                ("earpiece", "default", "Standaard", parse_price(row.get("Oorspeaker"))),
-                ("vibration", "default", "Standaard", parse_price(row.get("Taptic Engine (Vibratie)"))),
-                ("buttons", "default", "Standaard", btn_price),
-                ("faceid", "default", "Standaard", parse_price(row.get("Face ID / Touch ID"))),
+                ("diagnosis", "default", "Standaard", p_diag, 0, "Geen garantie"),
+                ("water", "default", "Standaard", p_water, 30, "30 dagen garantie"),
+                ("screen", "oem", "Origineel scherm (OEM)", parse_price(row.get("Scherm (Origineel / OEM)")), 365, "12 maanden garantie"),
+                ("screen", "soft_oled", "High Quality Display (Soft OLED)", parse_price(row.get("Scherm (Soft OLED)")), 365, "12 maanden garantie"),
+                ("screen", "budget", "Werkend scherm (gebruikt origineel)", parse_price(row.get("Scherm (LCD / Budget)")), 30, "30 dagen garantie"),
+                ("battery", "default", "Standaard", parse_price(row.get("Batterij")), 365, "12 maanden garantie"),
+                ("backhousing", "default", "Standaard", parse_price(row.get("Achterkant (Back glass)")), 365, "12 maanden garantie"),
+                ("charging", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic")), 365, "12 maanden garantie"),
+                ("microphone", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic")), 365, "12 maanden garantie"),
+                ("camera", "default", "Standaard", parse_price(row.get("Achter Camera module")), 365, "12 maanden garantie"),
+                ("cameralens", "default", "Standaard", parse_price(row.get("Cameralens (Glas)")), 365, "12 maanden garantie"),
+                ("speaker", "default", "Standaard", parse_price(row.get("Luidspreker (Bodem)")), 365, "12 maanden garantie"),
+                ("earpiece", "default", "Standaard", parse_price(row.get("Oorspeaker")), 365, "12 maanden garantie"),
+                ("vibration", "default", "Standaard", parse_price(row.get("Taptic Engine (Vibratie)")), 365, "12 maanden garantie"),
+                ("buttons", "default", "Standaard", btn_price, 365, "12 maanden garantie"),
+                ("faceid", "default", "Standaard", parse_price(row.get("Face ID / Touch ID")), 365, "12 maanden garantie"),
             ]
 
-            for rep_id, q_key, q_label, price_val in targets:
-                # Valideer dat deze repair_id ook daadwerkelijk bestaat in de repairs tabel
+            for rep_id, q_key, q_label, price_val, w_days, w_label in targets:
                 if rep_id not in valid_repair_ids:
                     continue
 
@@ -1552,10 +1556,17 @@ async def import_selling_prices_csv(
                             break
 
                 if match_po:
+                    # Update prijs, zichtbaarheid en corrigeer de garanties
+                    match_po.price_eur = price_val
+                    match_po.warranty_days = w_days
+                    match_po.warranty_label = w_label
                     if price_val is not None:
-                        match_po.price_eur = price_val
                         match_po.enabled = True
-                        updated_count += 1
+                        match_po.on_request = False
+                    else:
+                        match_po.enabled = False
+                        match_po.on_request = True
+                    updated_count += 1
                 else:
                     new_po = PartOption(
                         id=f"po-{device.id}-{rep_id}-{q_key}",
@@ -1564,6 +1575,9 @@ async def import_selling_prices_csv(
                         quality_key=q_key,
                         quality_label=q_label,
                         price_eur=price_val,
+                        warranty_days=w_days,
+                        warranty_label=w_label,
+                        on_request=(price_val is None),
                         order=1,
                         enabled=(price_val is not None)
                     )
@@ -1575,5 +1589,5 @@ async def import_selling_prices_csv(
         "status": "success",
         "updated": updated_count,
         "created": created_count,
-        "message": f"{len(ordered_rows)} toestellen op volgorde gezet. Prijzen succesvol gekoppeld!"
+        "message": f"{len(ordered_rows)} toestellen verwerkt. Prijzen en garanties kloppen nu exact!"
     }
