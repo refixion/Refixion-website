@@ -995,30 +995,33 @@ async def admin_list_devices(_: dict = Depends(admin_only), session: AsyncSessio
 
 
 @api.post("/admin/devices")
-    async def admin_create_device(payload: Dict[str, Any], _: dict = Depends(admin_only), session: AsyncSession = Depends(get_session)):
-        # 1. Schuif alle bestaande devices automatisch 1 positie op (1 -> 2, 2 -> 3, etc.)
-        from sqlalchemy import update
-        await session.execute(
-            update(Device).values(order=Device.order + 1)
-        )
+async def admin_create_device(
+    payload: Dict[str, Any],
+    _: dict = Depends(admin_only),
+    session: AsyncSession = Depends(get_session)
+):
+    from sqlalchemy import update
+    # 1. Schuif alle bestaande devices 1 positie op
+    await session.execute(
+        update(Device).values(order=Device.order + 1)
+    )
 
-        # 2. Maak het nieuwe toestel altijd aan op positie 1
-        device = Device(
-            id=f"dev-{new_id()[:8]}",
-            brand_id=payload.get("brand_id", "brand-apple"),
-            name=payload["name"].strip(),
-            popular=bool(payload.get("popular", False)),
-            order=1,  # Komt altijd bovenaan
-            enabled=True,
-        )
-        session.add(device)
-        try:
-            await session.commit()
-        except IntegrityError:
-            await session.rollback()
-            raise HTTPException(status_code=400, detail="Ongeldig merk of toestelnaam")
-        return device_to_dict(device)
-
+    # 2. Nieuw toestel start altijd op volgorde 1
+    device = Device(
+        id=f"dev-{new_id()[:8]}",
+        brand_id=payload.get("brand_id", "brand-apple"),
+        name=payload["name"].strip(),
+        popular=bool(payload.get("popular", False)),
+        order=1,
+        enabled=True,
+    )
+    session.add(device)
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(status_code=400, detail="Ongeldig merk of toestelnaam")
+    return device_to_dict(device)
 
 @api.put("/admin/devices/{device_id}")
 async def admin_update_device(device_id: str, payload: Dict[str, Any], _: dict = Depends(admin_only), session: AsyncSession = Depends(get_session)):
