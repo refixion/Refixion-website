@@ -1370,9 +1370,8 @@ REPAIR_QUALITY_MAPPING = {
     "Power Knop flex": ("power_flex", "default", "Standaard"),
     "Wireless Charging Coil": ("wireless_coil", "default", "Standaard")
 }
-
 # -------------------------------------------------------------
-# DEFINITIEVE CSV IMPORT: 1-OP-1 GEMAPT OP DE ADMIN MODAL
+# DEFINITIEVE CSV IMPORT: VEILIGE REPAIRS EN PART_OPTIONS
 # -------------------------------------------------------------
 
 @app.post("/api/admin/devices/import-prices-csv")
@@ -1415,7 +1414,45 @@ async def import_selling_prices_csv(
     delimiter = ";" if ";" in sample and sample.count(";") > sample.count(",") else ","
     rows = list(csv.DictReader(io.StringIO(decoded), delimiter=delimiter))
 
-    # 1. Haal alle bestaande apparaten op en ruim dubbele records automatisch op
+    # 1. Zorg dat alle benodigde repair_ids gegarandeerd in de 'repairs' tabel bestaan
+    existing_repairs_res = await session.execute(select(Repair.id))
+    valid_repair_ids = set(existing_repairs_res.scalars().all())
+
+    repair_defaults = {
+        "screen": "Scherm reparatie",
+        "battery": "Batterij vervangen",
+        "backhousing": "Achterkant / Behuizing",
+        "charging": "Oplaadpoort",
+        "microphone": "Microfoon",
+        "camera": "Camera achter",
+        "cameralens": "Cameralens",
+        "speaker": "Luidspreker",
+        "earpiece": "Oorspeaker",
+        "vibration": "Trilmotor",
+        "buttons": "Knoppen flex",
+        "faceid": "Face ID",
+        "diagnosis": "Diagnose",
+        "water": "Waterschade behandeling"
+    }
+
+    for rep_id, rep_name in repair_defaults.items():
+        if rep_id not in valid_repair_ids:
+            try:
+                new_rep = Repair(
+                    id=rep_id,
+                    name=rep_name,
+                    icon="Wrench",
+                    duration_minutes=30,
+                    enabled=True,
+                    order=1
+                )
+                session.add(new_rep)
+                await session.flush()
+                valid_repair_ids.add(rep_id)
+            except Exception:
+                await session.rollback()
+
+    # 2. Haal bestaande apparaten op en ruim dubbele records op
     existing_devices_query = await session.execute(select(Device))
     all_existing_devices = existing_devices_query.scalars().all()
 
@@ -1426,114 +1463,112 @@ async def import_selling_prices_csv(
     device_lookup = {}
     for name_key, dev_list in grouped_devices.items():
         device_lookup[name_key] = dev_list[0]
-        # Verwijder overtollige duplicaten (zoals eerdere meervoudige iPhone 17's)
         for extra_dev in dev_list[1:]:
             await session.execute(delete(PartOption).where(PartOption.device_id == extra_dev.id))
             await session.delete(extra_dev)
 
-    # 2. Draai de rijen om: iPhone 17 Pro Max onderaan in CSV wordt positie 1
+    # 3. Draai rijen om: iPhone 17 Pro Max (onderaan in CSV) krijgt positie 1
     ordered_rows = rows[::-1]
 
     updated_count = 0
     created_count = 0
 
-    for current_order, row in enumerate(ordered_rows, start=1):
-        model_name = (row.get("Model") or row.get("model") or row.get("Toestel") or "").strip()
-        if not model_name:
-            continue
-        lookup_key = model_name.lower()
+    with session.no_autoflush:
+        for current_order, row in enumerate(ordered_rows, start=1):
+            model_name = (row.get("Model") or row.get("model") or row.get("Toestel") or "").strip()
+            if not model_name:
+                continue
+            lookup_key = model_name.lower()
 
-        # Zoek bestaand toestel of maak uniek nieuw toestel aan
-        device = device_lookup.get(lookup_key)
-        if not device:
-            device = Device(
-                id=f"dev-{new_id()[:8]}",
-                name=model_name,
-                brand_id="brand-apple",
-                order=current_order,
-                popular=False,
-                enabled=True
-            )
-            session.add(device)
-            await session.flush()
-            device_lookup[lookup_key] = device
-        else:
-            device.order = current_order
-
-        # Haal bestaande opties op voor dit specifieke toestel
-        stmt_pos = select(PartOption).where(PartOption.device_id == device.id)
-        existing_pos = (await session.execute(stmt_pos)).scalars().all()
-
-        # 3. Bouw de prijzenmap exact op basis van de admin modal velden
-        btn_price = parse_price(row.get("Volume Knoppen flex")) or parse_price(row.get("Power Knop flex"))
-        
-        # Waterschade en diagnose splitsen ("€ 39,- / € 49,-")
-        water_diag_raw = str(row.get("Waterschade reiniging / diagnose", ""))
-        diag_nums = re.findall(r"(\d+)", water_diag_raw.replace(" ", ""))
-        p_diag = float(diag_nums[0]) if len(diag_nums) >= 1 else 39.0
-        p_water = float(diag_nums[1]) if len(diag_nums) >= 2 else 49.0
-
-        targets = [
-            ("diagnosis", "default", "Standaard", p_diag),
-            ("water", "default", "Standaard", p_water),
-            ("screen", "oem", "Origineel scherm (OEM)", parse_price(row.get("Scherm (Origineel / OEM)"))),
-            ("screen", "soft_oled", "High Quality Display (Soft OLED)", parse_price(row.get("Scherm (Soft OLED)"))),
-            ("screen", "budget", "Werkend scherm (gebruikt origineel)", parse_price(row.get("Scherm (LCD / Budget)"))),
-            ("battery", "default", "Standaard", parse_price(row.get("Batterij"))),
-            ("backhousing", "default", "Standaard", parse_price(row.get("Achterkant (Back glass)"))),
-            ("charging", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic"))),
-            ("microphone", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic"))),
-            ("camera", "default", "Standaard", parse_price(row.get("Achter Camera module"))),
-            ("cameralens", "default", "Standaard", parse_price(row.get("Cameralens (Glas)"))),
-            ("speaker", "default", "Standaard", parse_price(row.get("Luidspreker (Bodem)"))),
-            ("earpiece", "default", "Standaard", parse_price(row.get("Oorspeaker"))),
-            ("vibration", "default", "Standaard", parse_price(row.get("Taptic Engine (Vibratie)"))),
-            ("buttons", "default", "Standaard", btn_price),
-            ("faceid", "default", "Standaard", parse_price(row.get("Face ID / Touch ID"))),
-        ]
-
-        # 4. Werk bestaande records bij of voeg ontbrekende toe
-        for rep_id, q_key, q_label, price_val in targets:
-            match_po = None
-            if rep_id == "screen":
-                # Match schermkwaliteit op basis van label of key
-                for po in existing_pos:
-                    if po.repair_id == "screen":
-                        lbl = (po.quality_label or "").lower()
-                        k = (po.quality_key or "").lower()
-                        if q_key == "oem" and ("oem" in k or "orig" in lbl):
-                            match_po = po
-                            break
-                        elif q_key == "soft_oled" and ("soft" in k or "soft" in lbl or "high" in lbl):
-                            match_po = po
-                            break
-                        elif q_key == "budget" and ("budget" in k or "werkend" in lbl or "gebruikt" in lbl or "lcd" in k):
-                            match_po = po
-                            break
-            else:
-                for po in existing_pos:
-                    if po.repair_id == rep_id:
-                        match_po = po
-                        break
-
-            if match_po:
-                if price_val is not None:
-                    match_po.price_eur = price_val
-                    match_po.enabled = True
-                    updated_count += 1
-            else:
-                new_po = PartOption(
-                    id=f"po-{device.id}-{rep_id}-{q_key}",
-                    device_id=device.id,
-                    repair_id=rep_id,
-                    quality_key=q_key,
-                    quality_label=q_label,
-                    price_eur=price_val,
-                    order=1,
-                    enabled=(price_val is not None)
+            device = device_lookup.get(lookup_key)
+            if not device:
+                device = Device(
+                    id=f"dev-{new_id()[:8]}",
+                    name=model_name,
+                    brand_id="brand-apple",
+                    order=current_order,
+                    popular=False,
+                    enabled=True
                 )
-                session.add(new_po)
-                created_count += 1
+                session.add(device)
+                await session.flush()
+                device_lookup[lookup_key] = device
+            else:
+                device.order = current_order
+
+            stmt_pos = select(PartOption).where(PartOption.device_id == device.id)
+            existing_pos = (await session.execute(stmt_pos)).scalars().all()
+
+            btn_price = parse_price(row.get("Volume Knoppen flex")) or parse_price(row.get("Power Knop flex"))
+            
+            water_diag_raw = str(row.get("Waterschade reiniging / diagnose", ""))
+            diag_nums = re.findall(r"(\d+)", water_diag_raw.replace(" ", ""))
+            p_diag = float(diag_nums[0]) if len(diag_nums) >= 1 else 39.0
+            p_water = float(diag_nums[1]) if len(diag_nums) >= 2 else 49.0
+
+            targets = [
+                ("diagnosis", "default", "Standaard", p_diag),
+                ("water", "default", "Standaard", p_water),
+                ("screen", "oem", "Origineel scherm (OEM)", parse_price(row.get("Scherm (Origineel / OEM)"))),
+                ("screen", "soft_oled", "High Quality Display (Soft OLED)", parse_price(row.get("Scherm (Soft OLED)"))),
+                ("screen", "budget", "Werkend scherm (gebruikt origineel)", parse_price(row.get("Scherm (LCD / Budget)"))),
+                ("battery", "default", "Standaard", parse_price(row.get("Batterij"))),
+                ("backhousing", "default", "Standaard", parse_price(row.get("Achterkant (Back glass)"))),
+                ("charging", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic"))),
+                ("microphone", "default", "Standaard", parse_price(row.get("Oplaadpoort / Mic"))),
+                ("camera", "default", "Standaard", parse_price(row.get("Achter Camera module"))),
+                ("cameralens", "default", "Standaard", parse_price(row.get("Cameralens (Glas)"))),
+                ("speaker", "default", "Standaard", parse_price(row.get("Luidspreker (Bodem)"))),
+                ("earpiece", "default", "Standaard", parse_price(row.get("Oorspeaker"))),
+                ("vibration", "default", "Standaard", parse_price(row.get("Taptic Engine (Vibratie)"))),
+                ("buttons", "default", "Standaard", btn_price),
+                ("faceid", "default", "Standaard", parse_price(row.get("Face ID / Touch ID"))),
+            ]
+
+            for rep_id, q_key, q_label, price_val in targets:
+                # Valideer dat deze repair_id ook daadwerkelijk bestaat in de repairs tabel
+                if rep_id not in valid_repair_ids:
+                    continue
+
+                match_po = None
+                if rep_id == "screen":
+                    for po in existing_pos:
+                        if po.repair_id == "screen":
+                            lbl = (po.quality_label or "").lower()
+                            k = (po.quality_key or "").lower()
+                            if q_key == "oem" and ("oem" in k or "orig" in lbl):
+                                match_po = po
+                                break
+                            elif q_key == "soft_oled" and ("soft" in k or "soft" in lbl or "high" in lbl):
+                                match_po = po
+                                break
+                            elif q_key == "budget" and ("budget" in k or "werkend" in lbl or "gebruikt" in lbl or "lcd" in k):
+                                match_po = po
+                                break
+                else:
+                    for po in existing_pos:
+                        if po.repair_id == rep_id:
+                            match_po = po
+                            break
+
+                if match_po:
+                    if price_val is not None:
+                        match_po.price_eur = price_val
+                        match_po.enabled = True
+                        updated_count += 1
+                else:
+                    new_po = PartOption(
+                        id=f"po-{device.id}-{rep_id}-{q_key}",
+                        device_id=device.id,
+                        repair_id=rep_id,
+                        quality_key=q_key,
+                        quality_label=q_label,
+                        price_eur=price_val,
+                        order=1,
+                        enabled=(price_val is not None)
+                    )
+                    session.add(new_po)
+                    created_count += 1
 
     await session.commit()
     return {
