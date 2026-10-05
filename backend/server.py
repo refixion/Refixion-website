@@ -163,25 +163,37 @@ async def list_devices(brand_id: Optional[str] = None, q: Optional[str] = None, 
 
 @api.get("/repairs")
 async def list_repairs(device_id: Optional[str] = None, session: AsyncSession = Depends(get_session)):
-    """Return enabled repairs. If device_id is provided, attach enabled part_options
-    (each with own price and warranty) plus a computed `from_price` for card display."""
+    """Return enabled repairs. Filtert automatisch spook-reparaties weg."""
     reps = (await session.execute(
         select(Repair).where(Repair.enabled.is_(True)).order_by(Repair.order).limit(200)
     )).scalars().all()
     rows = [repair_to_dict(r) for r in reps]
+    
     if device_id:
         opts = (await session.execute(
             select(PartOption).where(PartOption.device_id == device_id, PartOption.enabled.is_(True)).limit(1000)
         )).scalars().all()
+        
         by_repair: Dict[str, List[Dict[str, Any]]] = {}
         for o in opts:
             by_repair.setdefault(o.repair_id, []).append(part_option_to_dict(o))
+            
+        filtered_rows = []
         for r in rows:
             opts_list = sorted(by_repair.get(r["id"], []), key=lambda x: x.get("order", 99))
+            
+            # TOON ALLEEN REPARATIES DIE DAADWERKELIJK ONDERDELEN/PRIJZEN HEBBEN VOOR DIT TOESTEL
+            if not opts_list:
+                continue
+                
             r["part_options"] = opts_list
             prices = [o["price_eur"] for o in opts_list if o.get("price_eur") is not None]
             r["from_price"] = min(prices) if prices else None
-            r["any_on_request"] = any(o.get("on_request") or o.get("price_eur") is None for o in opts_list) or not opts_list
+            r["any_on_request"] = any(o.get("on_request") or o.get("price_eur") is None for o in opts_list)
+            filtered_rows.append(r)
+            
+        return filtered_rows
+        
     return rows
 
 
