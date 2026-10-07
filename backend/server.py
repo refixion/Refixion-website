@@ -115,7 +115,8 @@ api = APIRouter(prefix="/api")
 app.include_router(shop_router)
 app.include_router(upload_router)
 app.include_router(payment_router, prefix="/api")
-#app.include_router(deal_hunter_router)
+CALCOM_API_KEY = os.environ.get("CALCOM_API_KEY")
+CALCOM_EVENT_TYPE_ID = os.environ.get("CALCOM_EVENT_TYPE_ID") # of hardcoded ID van je event
 @api.get("/debug-routes")
 async def debug_routes():
     return [str(route.path) for route in app.routes]
@@ -562,6 +563,30 @@ def _email_layout(content: str, ws: dict | None = None) -> str:
 </body>
 </html>
 """
+async def _send_telegram_notification(booking: dict):
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
+
+    text = (
+        f"🚨 <b>Nieuwe boeking!</b> (#{booking.get('reference', '')})\n\n"
+        f"👤 <b>Klant:</b> {booking.get('first_name', '')} {booking.get('last_name', '')}\n"
+        f"📱 <b>Toestel:</b> {booking.get('brand_name', '')} {booking.get('device_name', '')}\n"
+        f"🔧 <b>Reparatie:</b> {booking.get('repair_name', '')}\n"
+        f"🎨 <b>Kleur:</b> {booking.get('color') or 'N.v.t.'}\n"
+        f"📅 <b>Datum & tijd:</b> {booking.get('appointment_date', '')} om {booking.get('appointment_time', '')}\n"
+        f"💰 <b>Totaalbedrag:</b> €{booking.get('total_price', 0):.2f}\n"
+        f"📞 <b>Telefoon:</b> {booking.get('phone', '')}\n"
+        f"📍 <b>Adres:</b> {booking.get('street', '')} {booking.get('house_number', '')}, {booking.get('city', '')}"
+    )
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"})
+    except Exception as e:
+        logger.error(f"Fout bij versturen van Telegram notificatie: {e}")
 
 async def _send_email(
     to_email: str,
@@ -800,7 +825,7 @@ async def create_booking(payload: BookingIn, request: Request, session: AsyncSes
     internal_to = os.environ.get("INTERNAL_NOTIFICATION_EMAIL", "refixionstore@gmail.com")
     await _send_email(internal_to, f"Nieuwe reparatieboeking – {payload.first_name} {payload.last_name}", _internal_email_html(booking_dict), session)
     await _send_email(payload.email, "Uw Refixion reparatieboeking", _customer_email_html(booking_dict, ws), session)
-
+    await _send_telegram_notification(doc)
     return {"reference": ref, "id": booking.id, "status": "pending", "total_price": total}
 
 
@@ -1569,3 +1594,48 @@ async def import_selling_prices_csv(
         "options_created": created_options_count,
         "message": f"Succesvol opgeschoond en opnieuw opgebouwd! {len(ordered_rows)} toestellen en {created_options_count} opties netjes ingeladen."
     }
+
+@router.get("/cal/slots")
+async def get_available_slots(date: str):
+    """
+    Haalt de beschikbare slots op voor een specifieke datum (YYYY-MM-DD)
+    """
+    if not CALCOM_API_KEY:
+        # Fallback voor als er nog geen key is ingesteld
+        return {"slots": []}
+
+    # Cal.com v2 slots endpoint
+    url = "https://api.cal.com/v2/slots/available"
+    params = {
+        "eventTypeId": CALCOM_EVENT_TYPE_ID,
+        "startTime": f"{date}T00:00:00Z",
+        "endTime": f"{date}T23:59:59Z",
+    }
+    headers = {
+        "Authorization": f"Bearer {CALCOM_API_KEY}",
+        "cal-api-version": "2024-08-13"
+    }
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            resp = await client.get(url, params=params, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                # Haal de tijden eruit (bijv. ["10:00", "10:45", ...])
+                slots = []
+                slots_data = data.get("data", {}).get("slots", {})
+                # slots_data is een dict met datum -> lijst van slots
+                for date_key, day_slots in slots_data.items():
+                    for s in day_slots:
+                        start_time = s.get("time") # bijv. "2026-10-12T10:00:00.000Z"
+                        if start_time:
+                            # Converteer naar HH:MM lokale tijd
+                            from datetime import datetime
+                            dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                            slots.append(dt.strftime("%H:%M"))
+                return {"slots": sorted(list(set(slots)))}
+        except Exception as e:
+            logger.error(f"Fout bij ophalen Cal.com slots: {e}")
+            return {"slots": []}
+
+    return {"slots": []}

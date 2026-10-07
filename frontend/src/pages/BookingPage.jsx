@@ -9,6 +9,7 @@ import { api, formatApiErrorDetail } from "../lib/api";
 import { useBooking } from "../lib/booking-store";
 import { LogoFull } from "../components/site/Logo";
 import { resolveIcon } from "../lib/icons";
+import Cal, { getCalApi } from "@calcom/embed-react";
 
 const BRAND_ICONS = { apple: SiApple, samsung: SiSamsung };
 const METHOD_ICONS = { store: Store, package: Package, truck: Truck, briefcase: Briefcase };
@@ -81,12 +82,33 @@ export default function BookingPage() {
   const [devices, setDevices] = useState([]);
   const [repairs, setRepairs] = useState([]);
   const [methods, setMethods] = useState([]);
-  const [availability, setAvailability] = useState({ slots: [], loading: false });
   const [searchDev, setSearchDev] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const step = state.step || 1;
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
+  const fetchSlots = async (selectedDate) => {
+    if (!selectedDate) return;
+    setLoadingSlots(true);
+    try {
+      const res = await fetch(`/api/cal/slots?date=${selectedDate}`);
+      const data = await res.json();
+      setAvailableSlots(data.slots || []);
+    } catch (err) {
+      console.error("Fout bij ophalen slots:", err);
+      setAvailableSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+  useEffect(() => {
+  if (step === 5 && state.date && availableSlots.length === 0) {
+    fetchSlots(state.date);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [step, state.date]);
   // Load brands on mount
   useEffect(() => {
     api.get("/brands").then((r) => setBrands(r.data));
@@ -427,57 +449,55 @@ export default function BookingPage() {
           </StepShell>
         )}
 
-        {/* Step 5: Date & Time */}
         {step === 5 && (
-          <StepShell title="Kies datum en tijd." subtitle="Selecteer wanneer het je uitkomt." onBack={() => setStep(4)} onNext={() => setStep(6)} canNext={canNext}>
-            <div className="grid md:grid-cols-2 gap-8">
-              <div>
-                <div className="text-[12px] uppercase tracking-wider text-[#666666] mb-3">Datum</div>
-                <div className="grid grid-cols-4 gap-2 max-h-[380px] overflow-y-auto pr-1">
-                  {dates.map((d) => {
-                    const iso = d.toISOString().slice(0, 10);
-                    const sel = state.date === iso;
-                    return (
-                      <button
-                        key={iso}
-                        data-testid={`wizard-date-${iso}`}
-                        onClick={() => update({ date: iso, time: null })}
-                        className={`rounded-2xl border p-3 text-left transition-colors ${sel ? "border-[#111111] bg-[#111111] text-white" : "border-[#EAEAEA] bg-white text-[#111111] hover:border-[#666666]"}`}
-                      >
-                        <div className={`text-[11px] uppercase ${sel ? "text-white/70" : "text-[#666666]"}`}>{d.toLocaleDateString("nl-NL", { weekday: "short" })}</div>
-                        <div className="text-[18px] font-semibold mt-0.5">{d.getDate()}</div>
-                        <div className={`text-[11px] ${sel ? "text-white/70" : "text-[#666666]"}`}>{d.toLocaleDateString("nl-NL", { month: "short" })}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div>
-                <div className="text-[12px] uppercase tracking-wider text-[#666666] mb-3">Tijd</div>
-                {!state.date && <div className="text-[14px] text-[#666666]">Selecteer eerst een datum.</div>}
-                {state.date && availability.loading && <div className="text-[14px] text-[#666666]">Laden...</div>}
-                {state.date && !availability.loading && availability.slots.length === 0 && (
-                  <div className="text-[14px] text-[#666666]">{availability.closed ? "Gesloten op deze dag." : availability.full ? "Volgeboekt." : "Geen tijden beschikbaar."}</div>
-                )}
-                <div className="grid grid-cols-3 gap-2">
-                  {availability.slots.map((slot) => {
-                    const sel = state.time === slot;
-                    return (
-                      <button
-                        key={slot}
-                        data-testid={`wizard-time-${slot}`}
-                        onClick={() => update({ time: slot })}
-                        className={`rounded-full border py-2.5 text-[13px] transition-colors ${sel ? "border-[#111111] bg-[#111111] text-white" : "border-[#EAEAEA] bg-white text-[#111111] hover:border-[#666666]"}`}
-                      >
-                        {slot}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </StepShell>
-        )}
+  <StepShell
+    title="Kies datum en tijd."
+    subtitle="Kies een beschikbaar tijdslot voor je reparatie."
+    onBack={() => setStep(4)}
+    onNext={() => setStep(6)}
+    canNext={!!state.date && !!state.time}
+  >
+    {/* Datum selectie */}
+    <div className="mb-6">
+      <label className="block text-sm font-medium text-neutral-700 mb-2">Datum</label>
+      <input 
+        type="date" 
+        min={new Date().toISOString().split("T")[0]}
+        value={state.date || ""} 
+        onChange={(e) => {
+          update({ date: e.target.value, time: "" });
+          fetchSlots(e.target.value);
+        }}
+        className="w-full p-3 rounded-xl border border-neutral-300 focus:outline-none focus:border-black"
+      />
+    </div>
+
+    {/* Jouw eigen mooie knoppen voor de tijden */}
+    {availableSlots.length > 0 ? (
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+        {availableSlots.map((slot) => (
+          <button
+            key={slot}
+            type="button"
+            onClick={() => {
+              update({ time: slot });
+              setStep(6); // Klik op een tijd = DIRECT naar Stap 6!
+            }}
+            className={`py-3 px-4 rounded-xl text-sm font-semibold border transition ${
+              state.time === slot
+                ? "bg-black text-white border-black"
+                : "bg-white text-neutral-800 border-neutral-200 hover:border-black"
+            }`}
+          >
+            {slot}
+          </button>
+        ))}
+      </div>
+    ) : (
+      state.date && <p className="text-sm text-neutral-500">Geen beschikbare tijden op deze dag.</p>
+    )}
+  </StepShell>
+)}
 
         {/* Step 6: Customer */}
         {step === 6 && (
