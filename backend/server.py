@@ -135,7 +135,7 @@ async def on_shutdown():
 async def root():
     return {"service": "refixion", "status": "ok"}
 
-@api.get("/api/create-tables")
+@api.get("/create-tables")
 async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -1595,7 +1595,7 @@ async def import_selling_prices_csv(
         "message": f"Succesvol opgeschoond en opnieuw opgebouwd! {len(ordered_rows)} toestellen en {created_options_count} opties netjes ingeladen."
     }
 
-@app.get("/cal/slots")
+@app.get("api/cal/slots")
 async def get_available_slots(date: str):
     """
     Haalt de beschikbare slots op voor een specifieke datum (YYYY-MM-DD)
@@ -1640,7 +1640,7 @@ async def get_available_slots(date: str):
 
     return {"slots": []}
 
-@api.get("/cal/event-types")
+@app.get("api/cal/event-types")
 async def get_cal_event_types():
     """Toont al je Cal.com event types en hun ID's in de browser."""
     if not CALCOM_API_KEY:
