@@ -149,8 +149,8 @@ export default function BookingPage() {
   // Load availability when date changes
   useEffect(() => {
     if (state.date && step === 5) {
-      setAvailability({ slots: [], loading: true });
-      api.get(`/availability?date=${state.date}`).then((r) => setAvailability({ slots: r.data.slots || [], closed: r.data.closed, full: r.data.full, loading: false }));
+      setAvailableSlots({ slots: [], loading: true });
+      api.get(`/availability?date=${state.date}`).then((r) => setAvailableSlots({ slots: r.data.slots || [], loading: false }));
     }
   }, [state.date, step]);
 
