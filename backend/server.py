@@ -1646,23 +1646,22 @@ async def get_cal_event_types():
     """Toont al je Cal.com event types en hun ID's in de browser."""
     api_key = os.environ.get("CALCOM_API_KEY")
     if not api_key:
-        return {"error": "CALCOM_API_KEY is niet ingesteld in Vercel environment variables"}
+        return {"error": "CALCOM_API_KEY is niet ingesteld in environment variables"}
 
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "cal-api-version": "2024-08-13",
     }
     
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            res = await client.get("https://api.cal.com/v2/event-types", headers=headers)
-            try:
-                data = res.json()
-            except Exception:
-                data = res.text
+            # Cal.com v1 endpoint
+            res = await client.get(
+                f"https://api.cal.com/v1/event-types?apiKey={api_key}", 
+                headers=headers
+            )
             return {
                 "status_code": res.status_code,
-                "response": data
+                "response": res.json() if res.headers.get("content-type", "").startswith("application/json") else res.text
             }
     except Exception as e:
         return {"error": f"Fout bij verbinden met Cal.com: {str(e)}"}
