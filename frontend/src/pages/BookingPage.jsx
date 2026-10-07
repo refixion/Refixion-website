@@ -104,11 +104,15 @@ export default function BookingPage() {
     }
   };
   useEffect(() => {
-  if (step === 5 && state.date && availableSlots.length === 0) {
-    fetchSlots(state.date);
+  if (step === 5) {
+    const targetDate = state.date || new Date().toISOString().split("T")[0];
+    if (!state.date) {
+      update({ date: targetDate });
+    }
+    fetchSlots(targetDate);
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [step, state.date]);
+}, [step]);
   // Load brands on mount
   useEffect(() => {
     api.get("/brands").then((r) => setBrands(r.data));
@@ -449,55 +453,110 @@ export default function BookingPage() {
           </StepShell>
         )}
 
-        {step === 5 && (
-  <StepShell
-    title="Kies datum en tijd."
-    subtitle="Kies een beschikbaar tijdslot voor je reparatie."
-    onBack={() => setStep(4)}
-    onNext={() => setStep(6)}
-    canNext={!!state.date && !!state.time}
-  >
-    {/* Datum selectie */}
-    <div className="mb-6">
-      <label className="block text-sm font-medium text-neutral-700 mb-2">Datum</label>
-      <input 
-        type="date" 
-        min={new Date().toISOString().split("T")[0]}
-        value={state.date || ""} 
-        onChange={(e) => {
-          update({ date: e.target.value, time: "" });
-          fetchSlots(e.target.value);
-        }}
-        className="w-full p-3 rounded-xl border border-neutral-300 focus:outline-none focus:border-black"
-      />
-    </div>
+        {step === 5 && (() => {
+  // Genereer de komende 14 dagen (2 rijen van 7 dagen)
+  const daysToShow = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const isoDate = d.toISOString().split("T")[0];
+    const dayName = d.toLocaleDateString("nl-NL", { weekday: "short" }).toUpperCase().replace(".", "");
+    const dayNum = d.getDate();
+    const monthName = d.toLocaleDateString("nl-NL", { month: "short" }).replace(".", "");
+    return { isoDate, dayName, dayNum, monthName };
+  });
 
-    {/* Jouw eigen mooie knoppen voor de tijden */}
-    {availableSlots.length > 0 ? (
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-        {availableSlots.map((slot) => (
-          <button
-            key={slot}
-            type="button"
-            onClick={() => {
-              update({ time: slot });
-              setStep(6); // Klik op een tijd = DIRECT naar Stap 6!
-            }}
-            className={`py-3 px-4 rounded-xl text-sm font-semibold border transition ${
-              state.time === slot
-                ? "bg-black text-white border-black"
-                : "bg-white text-neutral-800 border-neutral-200 hover:border-black"
-            }`}
-          >
-            {slot}
-          </button>
-        ))}
+  return (
+    <StepShell
+      title="Kies datum en tijd."
+      subtitle="Selecteer wanneer het je uitkomt."
+      onBack={() => update({ step: 4 })}
+      onNext={() => update({ step: 6 })}
+      canNext={!!state.date && !!state.time}
+    >
+      <div className="space-y-8">
+        {/* DATUM SECTIE: 7 DAGEN NAAST ELKAAR */}
+        <div>
+          <span className="text-xs font-semibold tracking-wider text-neutral-400 uppercase block mb-3">
+            DATUM
+          </span>
+          <div className="grid grid-cols-7 gap-2 sm:gap-3">
+            {daysToShow.map((item) => {
+              const isSelected = state.date === item.isoDate;
+              return (
+                <button
+                  key={item.isoDate}
+                  type="button"
+                  onClick={() => {
+                    update({ date: item.isoDate, time: "" });
+                    fetchSlots(item.isoDate);
+                  }}
+                  className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all text-center ${
+                    isSelected
+                      ? "bg-neutral-900 text-white border-neutral-900 shadow-md scale-[1.02]"
+                      : "bg-white text-neutral-800 border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50"
+                  }`}
+                >
+                  <span className={`text-[11px] font-semibold uppercase ${isSelected ? "text-neutral-300" : "text-neutral-400"}`}>
+                    {item.dayName}
+                  </span>
+                  <span className="text-xl sm:text-2xl font-bold my-0.5">
+                    {item.dayNum}
+                  </span>
+                  <span className={`text-[11px] lowercase ${isSelected ? "text-neutral-300" : "text-neutral-400"}`}>
+                    {item.monthName}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* TIJD SECTIE: 3 KOLOMMEN MET SLOTS */}
+        <div>
+          <span className="text-xs font-semibold tracking-wider text-neutral-400 uppercase block mb-3">
+            TIJD
+          </span>
+
+          {loadingSlots ? (
+            <div className="flex items-center justify-center py-12 text-sm text-neutral-400">
+              Beschikbare tijden ophalen...
+            </div>
+          ) : !state.date ? (
+            <div className="py-8 text-sm text-neutral-400">
+              Kies eerst een datum om beschikbare tijden te bekijken.
+            </div>
+          ) : availableSlots.length === 0 ? (
+            <div className="py-8 text-sm text-neutral-500 bg-neutral-50 rounded-2xl border border-neutral-200 text-center">
+              Geen beschikbare tijdsloten op deze datum in je Cal.com agenda.
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
+              {availableSlots.map((slot) => {
+                const isSelected = state.time === slot;
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() => {
+                      update({ time: slot, step: 6 }); // Selecteer tijd en ga direct naar stap 6
+                    }}
+                    className={`py-3 px-4 rounded-xl text-sm font-medium border transition-all ${
+                      isSelected
+                        ? "bg-neutral-900 text-white border-neutral-900 shadow"
+                        : "bg-white text-neutral-800 border-neutral-200 hover:border-neutral-900 hover:bg-neutral-50"
+                    }`}
+                  >
+                    {slot}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
-    ) : (
-      state.date && <p className="text-sm text-neutral-500">Geen beschikbare tijden op deze dag.</p>
-    )}
-  </StepShell>
-)}
+    </StepShell>
+  );
+})()}
 
         {/* Step 6: Customer */}
         {step === 6 && (

@@ -1599,47 +1599,45 @@ async def import_selling_prices_csv(
 @app.get("/api/cal/slots")
 async def get_available_slots(date: str):
     """
-    Haalt de beschikbare slots op voor een specifieke datum (YYYY-MM-DD)
+    Haalt beschikbare tijdsloten op via de Cal.com v2 API voor een specifieke datum (YYYY-MM-DD).
     """
-    if not CALCOM_API_KEY:
-        # Fallback voor als er nog geen key is ingesteld
+    if not CALCOM_API_KEY or not CALCOM_EVENT_TYPE_ID:
+        logger.warning("CALCOM_API_KEY of CALCOM_EVENT_TYPE_ID ontbreekt.")
         return {"slots": []}
 
-    # Cal.com v2 slots endpoint
     url = "https://api.cal.com/v2/slots/available"
     params = {
         "eventTypeId": CALCOM_EVENT_TYPE_ID,
-        "startTime": f"{date}T00:00:00Z",
-        "endTime": f"{date}T23:59:59Z",
+        "startTime": f"{date}T00:00:00.000Z",
+        "endTime": f"{date}T23:59:59.999Z",
+        "timeZone": "Europe/Amsterdam",
     }
     headers = {
         "Authorization": f"Bearer {CALCOM_API_KEY}",
-        "cal-api-version": "2024-08-13"
+        "cal-api-version": "2024-08-13",
     }
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(url, params=params, headers=headers)
             if resp.status_code == 200:
                 data = resp.json()
-                # Haal de tijden eruit (bijv. ["10:00", "10:45", ...])
                 slots = []
-                slots_data = data.get("data", {}).get("slots", {})
-                # slots_data is een dict met datum -> lijst van slots
-                for date_key, day_slots in slots_data.items():
+                # Cal.com v2 structure: data -> slots -> { "2026-10-12": [ {"time": "..."}, ... ] }
+                slots_dict = data.get("data", {}).get("slots", {})
+                for day_key, day_slots in slots_dict.items():
                     for s in day_slots:
-                        start_time = s.get("time") # bijv. "2026-10-12T10:00:00.000Z"
+                        start_time = s.get("time") or s.get("start")
                         if start_time:
-                            # Converteer naar HH:MM lokale tijd
-                            from datetime import datetime
                             dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
                             slots.append(dt.strftime("%H:%M"))
                 return {"slots": sorted(list(set(slots)))}
-        except Exception as e:
-            logger.error(f"Fout bij ophalen Cal.com slots: {e}")
-            return {"slots": []}
-
-    return {"slots": []}
+            else:
+                logger.error(f"Cal.com slots error {resp.status_code}: {resp.text}")
+                return {"slots": []}
+    except Exception as e:
+        logger.error(f"Fout bij ophalen Cal.com slots: {e}")
+        return {"slots": []}
 
 @app.get("/api/cal/event-types")
 async def get_cal_event_types():
