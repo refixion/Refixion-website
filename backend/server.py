@@ -327,6 +327,7 @@ async def _load_booking_context(payload: BookingIn, session: AsyncSession):
 
 def _customer_email_html(booking: dict, ws: dict) -> str:
     price_line = "Op aanvraag" if booking.get("on_request") else f"<strong>€{booking['total_price']:.2f}</strong>"
+    color_row = f"<tr><td style=\"color:#666;padding:8px 0;\">Kleur</td><td style=\"text-align:right;\">{booking['color']}</td></tr>" if booking.get("color") else ""
     return f"""<!DOCTYPE html><html><body style="margin:0;padding:0;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#111;">
 <div style="max-width:600px;margin:0 auto;padding:40px 24px;">
 <div style="background:#fff;border:1px solid #eaeaea;border-radius:16px;padding:40px;">
@@ -336,6 +337,7 @@ def _customer_email_html(booking: dict, ws: dict) -> str:
     <table style="width:100%;font-size:14px;color:#111;border-collapse:collapse;">
         <tr><td style="color:#666;padding:8px 0;">Toestel</td><td style="text-align:right;">{booking['brand_name']} {booking['device_name']}</td></tr>
         <tr><td style="color:#666;padding:8px 0;">Reparatie</td><td style="text-align:right;">{booking['repair_name']}</td></tr>
+        {color_row}
         <tr><td style="color:#666;padding:8px 0;">Onderdeel</td><td style="text-align:right;">{booking.get('part_quality_label','Standaard')}</td></tr>
         <tr><td style="color:#666;padding:8px 0;">Garantie</td><td style="text-align:right;">{booking.get('warranty_label','')}</td></tr>
         <tr><td style="color:#666;padding:8px 0;">Methode</td><td style="text-align:right;">{booking['method_title']}</td></tr>
@@ -352,6 +354,7 @@ def _customer_email_html(booking: dict, ws: dict) -> str:
 
 
 def _internal_email_html(booking: dict) -> str:
+    color_row = f"<tr><td style=\"padding:4px 12px;color:#666;\">Kleur</td><td>{booking['color']}</td></tr>" if booking.get("color") else ""
     return f"""<!DOCTYPE html><html><body style="font-family:-apple-system,sans-serif;color:#111;">
 <h2>Nieuwe reparatieboeking · {booking['reference']}</h2>
 <table style="border-collapse:collapse;font-size:14px;">
@@ -361,6 +364,7 @@ def _internal_email_html(booking: dict) -> str:
 <tr><td style="padding:4px 12px;color:#666;">Adres</td><td>{booking['street']} {booking['house_number']}, {booking['postal_code']} {booking['city']}</td></tr>
 <tr><td style="padding:4px 12px;color:#666;">Merk / Toestel</td><td>{booking['brand_name']} · {booking['device_name']}</td></tr>
 <tr><td style="padding:4px 12px;color:#666;">Reparatie</td><td>{booking['repair_name']}</td></tr>
+{color_row}
 <tr><td style="padding:4px 12px;color:#666;">Onderdeel</td><td>{booking.get('part_quality_label','Standaard')}</td></tr>
 <tr><td style="padding:4px 12px;color:#666;">Garantie</td><td>{booking.get('warranty_label','')}</td></tr>
 <tr><td style="padding:4px 12px;color:#666;">Methode</td><td>{booking['method_title']}</td></tr>
@@ -762,6 +766,7 @@ async def create_booking(payload: BookingIn, request: Request, session: AsyncSes
         part_option_id=option.id,
         part_quality_key=option.quality_key,
         part_quality_label=option.quality_label,
+        color=payload.color,
         warranty_days=option.warranty_days,
         warranty_label=option.warranty_label,
         method_id=method.id, method_title=method.title,
@@ -1537,11 +1542,10 @@ async def import_selling_prices_csv(
             ("diagnosis", "default", "Standaard", p_diag, 0, "Geen garantie", 1),
         ]
 
-        for rep_id, q_key, q_label, price_val, w_days, w_label in targets:
+        for rep_id, q_key, q_label, price_val, w_days, w_label, opt_order in targets:
             if rep_id not in valid_repair_ids:
                 continue
 
-            # Altijd een gegarandeerd unieke ID genereren zodat pkey NOOIT kan botsen
             new_po = PartOption(
                 id=f"po-{new_id()[:12]}",
                 device_id=device.id,
@@ -1552,7 +1556,7 @@ async def import_selling_prices_csv(
                 warranty_days=w_days,
                 warranty_label=w_label,
                 on_request=(price_val is None),
-                order=1,
+                order=opt_order,  # gebruikt nu opt_order
                 enabled=True
             )
             session.add(new_po)

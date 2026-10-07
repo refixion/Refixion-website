@@ -11,6 +11,7 @@ const defaultState = {
   device: null,
   repair: null,
   part_option: null,   // selected quality/part option
+  color: null,         // <-- NIEUW: gekozen kleur (bijv. "Space Gray" of "Titanium Black")
   method: null,
   date: null,
   time: null,

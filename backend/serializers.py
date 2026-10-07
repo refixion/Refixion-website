@@ -37,6 +37,7 @@ def device_to_dict(d: Device) -> dict:
     return {
         "id": d.id, "brand_id": d.brand_id, "name": d.name,
         "popular": d.popular, "order": d.order, "enabled": d.enabled,
+        "colors": getattr(d, "colors", []) or [],  # <-- DEZE REGEL TOEVOEGEN
     }
 
 
@@ -44,7 +45,9 @@ def repair_to_dict(r: Repair) -> dict:
     doc = {
         "id": r.id, "name": r.name, "description": r.description,
         "duration_minutes": r.duration_minutes, "icon": r.icon, "order": r.order,
-        "has_quality_tiers": r.has_quality_tiers, "on_request": r.on_request, "enabled": r.enabled,
+        "has_quality_tiers": r.has_quality_tiers,
+        "requires_color": getattr(r, "requires_color", False),  # <-- DEZE REGEL TOEVOEGEN
+        "on_request": r.on_request, "enabled": r.enabled,
     }
     # Legacy free-form fields — only ever present once an admin has set them.
     if r.price_eur is not None:
@@ -149,7 +152,9 @@ def booking_to_dict(b: Booking, *, public: bool = False) -> dict:
         "device_id": b.device_id, "device_name": b.device_name,
         "repair_id": b.repair_id, "repair_name": b.repair_name,
         "part_option_id": b.part_option_id, "part_quality_key": b.part_quality_key,
-        "part_quality_label": b.part_quality_label, "warranty_days": b.warranty_days,
+        "part_quality_label": b.part_quality_label,
+        "color": getattr(b, "color", None),  # <-- DEZE REGEL TOEVOEGEN
+        "warranty_days": b.warranty_days,
         "warranty_label": b.warranty_label, "method_id": b.method_id, "method_title": b.method_title,
         "appointment_date": b.appointment_date, "appointment_time": b.appointment_time,
         "first_name": b.first_name, "last_name": b.last_name, "email": b.email, "phone": b.phone,

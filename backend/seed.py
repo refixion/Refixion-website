@@ -31,6 +31,7 @@ from models import (
 )
 from seed_data import (
     BRANDS,
+    DEVICE_COLORS,
     DEVICES,
     FAQS,
     GENERAL_WARRANTY_TEXT,
@@ -89,7 +90,7 @@ async def seed_all(session: AsyncSession) -> None:
     for b in BRANDS:
         await upsert_set(session, Brand, b, index_elements=["id"])
 
-    # ------- devices — remove ones under deprecated brands + orphans no longer in the seed catalog -------
+# ------- devices — remove ones under deprecated brands + orphans no longer in the seed catalog -------
     await session.execute(delete(Device).where(Device.brand_id.in_(["brand-google", "brand-oneplus"])))
     seed_device_ids = [d["id"] for d in DEVICES]
     await session.execute(
@@ -101,17 +102,24 @@ async def seed_all(session: AsyncSession) -> None:
     for d in DEVICES:
         await _upsert_set_partial(
             session, Device,
-            always_set={"id": d["id"], "brand_id": d["brand_id"], "name": d["name"], "popular": d["popular"], "order": d["order"]},
+            always_set={
+                "id": d["id"],
+                "brand_id": d["brand_id"],
+                "name": d["name"],
+                "popular": d["popular"],
+                "order": d["order"],
+                "colors": DEVICE_COLORS.get(d["id"], []),  # <-- DEZE REGEL TOEVOEGEN
+            },
             insert_only={"enabled": True},
             index_elements=["id"],
         )
-
-    # ------- repairs — upsert catalog (name/description/duration/icon/order from seed; enabled preserved) -------
+# ------- repairs — upsert catalog (name/description/duration/icon/order from seed; enabled preserved) -------
     for r in REPAIRS:
         always = {"id": r["id"]}
         always.update({k: r[k] for k in ("name", "description", "duration_minutes", "icon", "order", "has_quality_tiers", "on_request")})
+        always["requires_color"] = r.get("requires_color", False)  # <-- ALLEEN DIT TOEVOEGEN
         await _upsert_set_partial(session, Repair, always_set=always, insert_only={"enabled": True}, index_elements=["id"])
-
+        
     # ------- part options — seed only missing ones (never overwrite admin price edits) -------
     for po in build_part_options():
         await upsert_insert_only(session, PartOption, po, index_elements=["id"])

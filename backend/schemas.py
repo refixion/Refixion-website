@@ -19,6 +19,7 @@ class BookingIn(BaseModel):
     device_id: str
     repair_id: str
     part_option_id: Optional[str] = None  # required for repairs with multiple enabled part options
+    color: Optional[str] = None
     method_id: str
     appointment_date: str  # YYYY-MM-DD
     appointment_time: str  # HH:MM

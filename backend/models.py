@@ -82,6 +82,7 @@ class Device(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     brand_id: Mapped[str] = mapped_column(ForeignKey("brands.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    colors: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     popular: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     order: Mapped[int] = mapped_column(Integer, nullable=False, default=99)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -101,6 +102,7 @@ class Repair(Base):
     icon: Mapped[str] = mapped_column(String, nullable=False, default="")
     order: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     has_quality_tiers: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    requires_color: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     on_request: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Legacy free-form fields: the old admin_update_repair endpoint whitelists

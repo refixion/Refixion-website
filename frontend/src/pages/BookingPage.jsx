@@ -141,8 +141,9 @@ export default function BookingPage() {
       case 3: {
         if (!state.repair) return false;
         const opts = state.repair?.part_options || [];
-        if (opts.length <= 1) return true;
-        return !!state.part_option;
+        const qualityOk = opts.length <= 1 ? true : !!state.part_option;
+        const colorOk = !state.repair?.requires_color || !!state.color;
+        return qualityOk && colorOk;
       }
       case 4: return !!state.method;
       case 5: return !!state.date && !!state.time;
@@ -163,6 +164,7 @@ export default function BookingPage() {
         device_id: state.device.id,
         repair_id: state.repair.id,
         part_option_id: state.part_option?.id || (state.repair.part_options?.length === 1 ? state.repair.part_options[0].id : null),
+        color: state.color || null,
         method_id: state.method.id,
         appointment_date: state.date,
         appointment_time: state.time,
@@ -265,7 +267,7 @@ export default function BookingPage() {
               <StepShell
                 title="Kies onderdeel-kwaliteit."
                 subtitle={`${state.repair.name} · ${state.brand?.name} ${state.device?.name}`}
-                onBack={() => update({ repair: null, part_option: null })}
+                onBack={() => update({ repair: null, part_option: null, color: null })}
                 onNext={() => setStep(4)}
                 canNext={!!state.part_option}
               >
@@ -293,6 +295,30 @@ export default function BookingPage() {
                     );
                   })}
                 </div>
+                {state.repair?.requires_color && state.device?.colors && state.device.colors.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-[#EAEAEA]">
+                    <div className="text-[15px] font-medium text-[#111111] mb-1">Kies je kleur</div>
+                    <div className="text-[13px] text-[#666666] mb-4">Selecteer de kleur van je toestel voor het juiste onderdeel.</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                      {state.device.colors.map((c) => {
+                        const sel = state.color === c.name;
+                        return (
+                          <button
+                            key={c.name}
+                            type="button"
+                            onClick={() => update({ color: c.name })}
+                            className={`flex items-center gap-3 p-3 rounded-2xl border text-left transition-all ${
+                              sel ? "border-[#111111] bg-white shadow-sm ring-1 ring-[#111111]" : "border-[#EAEAEA] bg-white hover:border-[#888888]"
+                            }`}
+                          >
+                            <span className="w-5 h-5 rounded-full border border-black/10 shrink-0 shadow-inner" style={{ backgroundColor: c.hex }} />
+                            <span className="text-[13px] font-medium text-[#111111] truncate">{c.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="mt-6">
                   <button data-testid="wizard-change-repair" onClick={() => update({ repair: null, part_option: null })} className="text-[13px] text-[#666666] hover:text-[#111111] underline underline-offset-4">← Kies een andere reparatie</button>
                 </div>
@@ -319,9 +345,9 @@ export default function BookingPage() {
                       whileHover={{ y: -2 }}
                       onClick={() => {
                         if (opts.length === 1) {
-                          update({ repair: r, part_option: opts[0] });
+                          update({ repair: r, part_option: opts[0], color: null });
                         } else {
-                          update({ repair: r, part_option: null });
+                          update({ repair: r, part_option: null, color: null });
                         }
                       }}
                       className={`text-left rounded-2xl border p-6 bg-white transition-all ${selected ? "border-[#111111] shadow-[0_8px_30px_rgb(0,0,0,0.08)]" : "border-[#EAEAEA] hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)]"}`}
@@ -341,6 +367,32 @@ export default function BookingPage() {
                   );
                 })}
               </div>
+              {state.repair?.requires_color && state.device?.colors && state.device.colors.length > 0 && (
+                <div className="mt-8 p-6 rounded-2xl bg-[#FAFAFA] border border-[#EAEAEA]">
+                  <div className="text-[15px] font-medium text-[#111111] mb-1">Kies je gewenste kleur</div>
+                  <div className="text-[13px] text-[#666666] mb-4">
+                    Selecteer de originele kleur van je {state.device?.name} voor {state.repair?.name?.toLowerCase()}.
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                    {state.device.colors.map((c) => {
+                      const sel = state.color === c.name;
+                      return (
+                        <button
+                          key={c.name}
+                          type="button"
+                          onClick={() => update({ color: c.name })}
+                          className={`flex items-center gap-3 p-3 rounded-2xl border text-left transition-all ${
+                            sel ? "border-[#111111] bg-white shadow-sm ring-1 ring-[#111111]" : "border-[#EAEAEA] bg-white hover:border-[#888888]"
+                          }`}
+                        >
+                          <span className="w-5 h-5 rounded-full border border-black/10 shrink-0 shadow-inner" style={{ backgroundColor: c.hex }} />
+                          <span className="text-[13px] font-medium text-[#111111] truncate">{c.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </StepShell>
           );
         })()}
@@ -486,6 +538,7 @@ export default function BookingPage() {
                 ["Toestel", state.device?.name],
                 ["Reparatie", state.repair?.name],
                 ["Onderdeel", state.part_option?.quality_label || (state.repair?.part_options?.[0]?.quality_label || "Standaard")],
+                ...(state.color ? [["Kleur", state.color]] : []),
                 ["Garantie", state.part_option?.warranty_label || state.repair?.part_options?.[0]?.warranty_label || ""],
                 ["Methode", state.method?.title],
                 ["Datum", state.date],
