@@ -309,7 +309,7 @@ class Booking(Base):
     part_option_id: Mapped[str | None] = mapped_column(String, nullable=True)
     part_quality_key: Mapped[str | None] = mapped_column(String, nullable=True)
     part_quality_label: Mapped[str | None] = mapped_column(String, nullable=True)
-    color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    color: Mapped[str | None] = mapped_column(String, nullable=True)
     warranty_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     warranty_label: Mapped[str | None] = mapped_column(String, nullable=True)
 
