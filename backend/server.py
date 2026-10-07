@@ -88,6 +88,7 @@ from serializers import (
     workshop_to_dict,
 )
 from utils import new_id, now_iso
+import httpx
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("refixion")
@@ -1643,14 +1644,25 @@ async def get_available_slots(date: str):
 @app.get("/api/cal/event-types")
 async def get_cal_event_types():
     """Toont al je Cal.com event types en hun ID's in de browser."""
-    if not CALCOM_API_KEY:
-        return {"error": "CALCOM_API_KEY ontbreekt in environment variables"}
+    api_key = os.environ.get("CALCOM_API_KEY")
+    if not api_key:
+        return {"error": "CALCOM_API_KEY is niet ingesteld in Vercel environment variables"}
 
     headers = {
-        "Authorization": f"Bearer {CALCOM_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "cal-api-version": "2024-08-13",
     }
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        # V2 API endpoint van Cal.com
-        res = await client.get("https://api.cal.com/v2/event-types", headers=headers)
-        return res.json()
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get("https://api.cal.com/v2/event-types", headers=headers)
+            try:
+                data = res.json()
+            except Exception:
+                data = res.text
+            return {
+                "status_code": res.status_code,
+                "response": data
+            }
+    except Exception as e:
+        return {"error": f"Fout bij verbinden met Cal.com: {str(e)}"}
