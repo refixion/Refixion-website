@@ -1416,7 +1416,7 @@ REPAIR_QUALITY_MAPPING = {
 # DEFINITIEVE CSV IMPORT MET DIRECTE FLUSH & UNIEKE PRIMARY KEYS
 # -------------------------------------------------------------
 
-@app.post("/api/admin/devices/import-prices-csv")
+@app.post("/admin/devices/import-prices-csv")
 async def import_selling_prices_csv(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
@@ -1595,7 +1595,7 @@ async def import_selling_prices_csv(
         "message": f"Succesvol opgeschoond en opnieuw opgebouwd! {len(ordered_rows)} toestellen en {created_options_count} opties netjes ingeladen."
     }
 
-@router.get("/cal/slots")
+@app.get("/cal/slots")
 async def get_available_slots(date: str):
     """
     Haalt de beschikbare slots op voor een specifieke datum (YYYY-MM-DD)
@@ -1639,3 +1639,18 @@ async def get_available_slots(date: str):
             return {"slots": []}
 
     return {"slots": []}
+
+@api.get("/cal/event-types")
+async def get_cal_event_types():
+    """Toont al je Cal.com event types en hun ID's in de browser."""
+    if not CALCOM_API_KEY:
+        return {"error": "CALCOM_API_KEY ontbreekt in environment variables"}
+
+    headers = {
+        "Authorization": f"Bearer {CALCOM_API_KEY}",
+        "cal-api-version": "2024-08-13",
+    }
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        # V2 API endpoint van Cal.com
+        res = await client.get("https://api.cal.com/v2/event-types", headers=headers)
+        return res.json()
