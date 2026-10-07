@@ -1643,25 +1643,26 @@ async def get_available_slots(date: str):
 
 @app.get("/api/cal/event-types")
 async def get_cal_event_types():
-    """Toont al je Cal.com event types en hun ID's in de browser."""
+    """Toont al je Cal.com event types en hun ID's in de browser via API v2."""
     api_key = os.environ.get("CALCOM_API_KEY")
     if not api_key:
-        return {"error": "CALCOM_API_KEY is niet ingesteld in environment variables"}
+        return {"error": "CALCOM_API_KEY ontbreekt in environment variables"}
 
     headers = {
         "Authorization": f"Bearer {api_key}",
+        "cal-api-version": "2026-06-12",
     }
     
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            # Cal.com v1 endpoint
-            res = await client.get(
-                f"https://api.cal.com/v1/event-types?apiKey={api_key}", 
-                headers=headers
-            )
+            res = await client.get("https://api.cal.com/v2/event-types", headers=headers)
+            try:
+                data = res.json()
+            except Exception:
+                data = res.text
             return {
                 "status_code": res.status_code,
-                "response": res.json() if res.headers.get("content-type", "").startswith("application/json") else res.text
+                "response": data
             }
     except Exception as e:
         return {"error": f"Fout bij verbinden met Cal.com: {str(e)}"}
