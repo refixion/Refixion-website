@@ -90,19 +90,25 @@ export default function BookingPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   const fetchSlots = async (selectedDate) => {
-    if (!selectedDate) return;
-    setLoadingSlots(true);
-    try {
-      const res = await fetch(`/api/cal/slots?date=${selectedDate}`);
-      const data = await res.json();
-      setAvailableSlots(data.slots || []);
-    } catch (err) {
-      console.error("Fout bij ophalen slots:", err);
+  if (!selectedDate) return;
+  setLoadingSlots(true);
+  try {
+    const res = await fetch(`/api/cal/slots?date=${selectedDate}`);
+    const data = await res.json();
+    if (Array.isArray(data?.slots)) {
+      setAvailableSlots(data.slots);
+    } else if (Array.isArray(data)) {
+      setAvailableSlots(data);
+    } else {
       setAvailableSlots([]);
-    } finally {
-      setLoadingSlots(false);
     }
-  };
+  } catch (err) {
+    console.error("Fout bij ophalen slots:", err);
+    setAvailableSlots([]);
+  } finally {
+    setLoadingSlots(false);
+  }
+};
   useEffect(() => {
   if (step === 5) {
     const targetDate = state.date || new Date().toISOString().split("T")[0];
@@ -531,7 +537,7 @@ export default function BookingPage() {
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
-              {availableSlots.map((slot) => {
+              {(Array.isArray(availableSlots) ? availableSlots : []).map((slot) =>{
                 const isSelected = state.time === slot;
                 return (
                   <button
