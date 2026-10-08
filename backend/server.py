@@ -89,6 +89,7 @@ from serializers import (
 )
 from utils import new_id, now_iso
 import httpx
+from zoneinfo import ZoneInfo
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("refixion")
@@ -1599,17 +1600,20 @@ async def import_selling_prices_csv(
 @app.get("/api/cal/slots")
 async def get_available_slots(date: str):
     """
-    Haalt beschikbare tijdsloten op via de Cal.com v2 API voor een specifieke datum (YYYY-MM-DD).
+    Haalt beschikbare tijdsloten op voor een specifieke datum (YYYY-MM-DD)
+    in de tijdzone Europe/Amsterdam.
     """
     if not CALCOM_API_KEY or not CALCOM_EVENT_TYPE_ID:
-        logger.warning("CALCOM_API_KEY of CALCOM_EVENT_TYPE_ID ontbreekt.")
         return {"slots": []}
 
+    ams_tz = ZoneInfo("Europe/Amsterdam")
     url = "https://api.cal.com/v2/slots/available"
+    
+    # We vragen de sloten op met tijdzone Amsterdam
     params = {
         "eventTypeId": CALCOM_EVENT_TYPE_ID,
-        "startTime": f"{date}T00:00:00.000Z",
-        "endTime": f"{date}T23:59:59.999Z",
+        "startTime": f"{date}T00:00:00Z",
+        "endTime": f"{date}T23:59:59Z",
         "timeZone": "Europe/Amsterdam",
     }
     headers = {
@@ -1623,20 +1627,25 @@ async def get_available_slots(date: str):
             if resp.status_code == 200:
                 data = resp.json()
                 slots = []
-                # Cal.com v2 structure: data -> slots -> { "2026-10-12": [ {"time": "..."}, ... ] }
                 slots_dict = data.get("data", {}).get("slots", {})
-                for day_key, day_slots in slots_dict.items():
+                
+                for _, day_slots in slots_dict.items():
                     for s in day_slots:
                         start_time = s.get("time") or s.get("start")
                         if start_time:
-                            dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-                            slots.append(dt.strftime("%H:%M"))
+                            # Converteer UTC ISO naar Nederlandse tijd
+                            clean_time = start_time.replace("Z", "+00:00")
+                            dt_utc = datetime.fromisoformat(clean_time)
+                            dt_ams = dt_utc.astimezone(ams_tz)
+                            
+                            # Alleen toevoegen als de tijd in Nederland ook echt op de gekozen datum valt
+                            if dt_ams.strftime("%Y-%m-%d") == date:
+                                slots.append(dt_ams.strftime("%H:%M"))
+                                
                 return {"slots": sorted(list(set(slots)))}
             else:
-                logger.error(f"Cal.com slots error {resp.status_code}: {resp.text}")
                 return {"slots": []}
     except Exception as e:
-        logger.error(f"Fout bij ophalen Cal.com slots: {e}")
         return {"slots": []}
 
 @app.get("/api/cal/event-types")

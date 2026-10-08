@@ -88,27 +88,45 @@ export default function BookingPage() {
   const step = state.step || 1;
   const [availableSlots, setAvailableSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // Helper om lokale YYYY-MM-DD te krijgen zonder UTC-verschuiving
+  const getLocalDateString = (d) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
   const fetchSlots = async (selectedDate) => {
-  if (!selectedDate) return;
-  setLoadingSlots(true);
-  try {
-    const res = await fetch(`/api/cal/slots?date=${selectedDate}`);
-    const data = await res.json();
-    if (Array.isArray(data?.slots)) {
-      setAvailableSlots(data.slots);
-    } else if (Array.isArray(data)) {
-      setAvailableSlots(data);
-    } else {
+    if (!selectedDate) return;
+    setLoadingSlots(true);
+    try {
+      const res = await fetch(`/api/cal/slots?date=${selectedDate}`);
+      const data = await res.json();
+      if (data && Array.isArray(data.slots)) {
+        setAvailableSlots(data.slots);
+      } else {
+        setAvailableSlots([]);
+      }
+    } catch (err) {
+      console.error("Fout bij ophalen slots:", err);
       setAvailableSlots([]);
+    } finally {
+      setLoadingSlots(false);
     }
-  } catch (err) {
-    console.error("Fout bij ophalen slots:", err);
-    setAvailableSlots([]);
-  } finally {
-    setLoadingSlots(false);
-  }
-};
+  };
+
+  // Direct laden bij binnenkomst op stap 5
+  useEffect(() => {
+    if (step === 5) {
+      const todayStr = state.date || getLocalDateString(new Date());
+      if (!state.date) {
+        update({ date: todayStr });
+      }
+      fetchSlots(todayStr);
+    }
+  }, [step]);
   useEffect(() => {
   if (step === 5) {
     const targetDate = state.date || new Date().toISOString().split("T")[0];
@@ -460,16 +478,35 @@ export default function BookingPage() {
         )}
 
         {step === 5 && (() => {
-  // Genereer de komende 14 dagen (2 rijen van 7 dagen)
-  const daysToShow = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    const isoDate = d.toISOString().split("T")[0];
-    const dayName = d.toLocaleDateString("nl-NL", { weekday: "short" }).toUpperCase().replace(".", "");
-    const dayNum = d.getDate();
-    const monthName = d.toLocaleDateString("nl-NL", { month: "short" }).replace(".", "");
-    return { isoDate, dayName, dayNum, monthName };
+  const todayStr = getLocalDateString(new Date());
+
+  // Bereken details voor de getoonde maand
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth(); // 0-indexed (0 = Jan, 9 = Okt)
+
+  // Naam van huidige maand + jaar (bijv. "Oktober 2026")
+  const monthTitle = currentMonth.toLocaleDateString("nl-NL", {
+    month: "long",
+    year: "numeric",
   });
+
+  // Aantal dagen in deze maand
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Op welke weekdag begint dag 1? (0 = Zo, 1 = Ma, ..., 6 = Za)
+  // We willen dat de week op Maandag begint (0 = Ma, 6 = Zo)
+  const firstDayWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
+
+  // Navigatie functies voor vorige/volgende maand
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(year, month - 1, 1));
+  };
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(year, month + 1, 1));
+  };
+
+  // Weekdagen headers
+  const weekDays = ["MA", "DI", "WO", "DO", "VR", "ZA", "ZO"];
 
   return (
     <StepShell
@@ -479,37 +516,82 @@ export default function BookingPage() {
       onNext={() => update({ step: 6 })}
       canNext={!!state.date && !!state.time}
     >
-      <div className="space-y-8">
-        {/* DATUM SECTIE: 7 DAGEN NAAST ELKAAR */}
-        <div>
-          <span className="text-xs font-semibold tracking-wider text-neutral-400 uppercase block mb-3">
-            DATUM
-          </span>
-          <div className="grid grid-cols-7 gap-2 sm:gap-3">
-            {daysToShow.map((item) => {
-              const isSelected = state.date === item.isoDate;
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* LINKERKOLOM: VOLLEDIGE MAANDKALENDER */}
+        <div className="lg:col-span-7 bg-white p-5 rounded-3xl border border-neutral-200/80 shadow-sm">
+          {/* Header met maandnaam en navigatiepijltjes */}
+          <div className="flex items-center justify-between mb-5">
+            <span className="text-sm font-bold capitalize text-neutral-900 tracking-wide">
+              {monthTitle}
+            </span>
+            <div className="flex items-center space-x-1">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className="p-2 rounded-xl text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
+                title="Vorige maand"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className="p-2 rounded-xl text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
+                title="Volgende maand"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Kolomtitels: MA DI WO DO VR ZA ZO */}
+          <div className="grid grid-cols-7 gap-1 mb-2 text-center">
+            {weekDays.map((wd) => (
+              <span key={wd} className="text-[11px] font-bold text-neutral-400 py-1">
+                {wd}
+              </span>
+            ))}
+          </div>
+
+          {/* Kalendergrid: 7 kolommen breed */}
+          <div className="grid grid-cols-7 gap-1.5">
+            {/* Lege opvulvakjes voor het begin van de maand */}
+            {Array.from({ length: firstDayWeekday }).map((_, idx) => (
+              <div key={`empty-${idx}`} className="h-14 sm:h-16" />
+            ))}
+
+            {/* Dagen van de maand */}
+            {Array.from({ length: daysInMonth }, (_, i) => {
+              const dayNum = i + 1;
+              const d = new Date(year, month, dayNum);
+              const isoDate = getLocalDateString(d);
+              const isPast = isoDate < todayStr;
+              const isSelected = state.date === isoDate;
+
               return (
                 <button
-                  key={item.isoDate}
+                  key={isoDate}
                   type="button"
+                  disabled={isPast}
                   onClick={() => {
-                    update({ date: item.isoDate, time: "" });
-                    fetchSlots(item.isoDate);
+                    if (isPast) return;
+                    update({ date: isoDate, time: "" });
+                    fetchSlots(isoDate);
                   }}
-                  className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all text-center ${
-                    isSelected
-                      ? "bg-neutral-900 text-white border-neutral-900 shadow-md scale-[1.02]"
-                      : "bg-white text-neutral-800 border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50"
+                  className={`h-14 sm:h-16 flex flex-col items-center justify-center rounded-2xl border text-center transition-all ${
+                    isPast
+                      ? "bg-neutral-50/60 text-neutral-300 border-transparent cursor-not-allowed"
+                      : isSelected
+                      ? "bg-neutral-900 text-white border-neutral-900 shadow-sm scale-[1.02]"
+                      : "bg-white text-neutral-800 border-neutral-200/80 hover:border-neutral-400 hover:bg-neutral-50"
                   }`}
                 >
-                  <span className={`text-[11px] font-semibold uppercase ${isSelected ? "text-neutral-300" : "text-neutral-400"}`}>
-                    {item.dayName}
-                  </span>
-                  <span className="text-xl sm:text-2xl font-bold my-0.5">
-                    {item.dayNum}
-                  </span>
-                  <span className={`text-[11px] lowercase ${isSelected ? "text-neutral-300" : "text-neutral-400"}`}>
-                    {item.monthName}
+                  <span className={`text-base sm:text-lg font-bold ${isPast ? "line-through text-neutral-300" : ""}`}>
+                    {dayNum}
                   </span>
                 </button>
               );
@@ -517,39 +599,35 @@ export default function BookingPage() {
           </div>
         </div>
 
-        {/* TIJD SECTIE: 3 KOLOMMEN MET SLOTS */}
-        <div>
-          <span className="text-xs font-semibold tracking-wider text-neutral-400 uppercase block mb-3">
+        {/* RECHTERKOLOM: TIJDSLOTEN (3 kolommen breed) */}
+        <div className="lg:col-span-5">
+          <span className="text-xs font-bold tracking-wider text-neutral-400 uppercase block mb-3">
             TIJD
           </span>
 
           {loadingSlots ? (
             <div className="flex items-center justify-center py-12 text-sm text-neutral-400">
-              Beschikbare tijden ophalen...
+              Beschikbare tijden laden...
             </div>
-          ) : !state.date ? (
-            <div className="py-8 text-sm text-neutral-400">
-              Kies eerst een datum om beschikbare tijden te bekijken.
-            </div>
-          ) : availableSlots.length === 0 ? (
-            <div className="py-8 text-sm text-neutral-500 bg-neutral-50 rounded-2xl border border-neutral-200 text-center">
-              Geen beschikbare tijdsloten op deze datum in je Cal.com agenda.
+          ) : !Array.isArray(availableSlots) || availableSlots.length === 0 ? (
+            <div className="py-6 px-4 text-sm text-neutral-500 bg-neutral-50 rounded-2xl border border-neutral-200/70 text-center">
+              Geen beschikbare tijdsloten meer op deze datum.
             </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
-              {(Array.isArray(availableSlots) ? availableSlots : []).map((slot) =>{
+            <div className="grid grid-cols-3 gap-2.5">
+              {availableSlots.map((slot) => {
                 const isSelected = state.time === slot;
                 return (
                   <button
                     key={slot}
                     type="button"
                     onClick={() => {
-                      update({ time: slot, step: 6 }); // Selecteer tijd en ga direct naar stap 6
+                      update({ time: slot, step: 6 });
                     }}
-                    className={`py-3 px-4 rounded-xl text-sm font-medium border transition-all ${
+                    className={`py-3 px-2 rounded-2xl text-sm font-medium border text-center transition-all ${
                       isSelected
-                        ? "bg-neutral-900 text-white border-neutral-900 shadow"
-                        : "bg-white text-neutral-800 border-neutral-200 hover:border-neutral-900 hover:bg-neutral-50"
+                        ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                        : "bg-white text-neutral-800 border-neutral-200/80 hover:border-neutral-900 hover:bg-neutral-50"
                     }`}
                   >
                     {slot}
