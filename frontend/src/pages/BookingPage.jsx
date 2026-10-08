@@ -117,26 +117,18 @@ export default function BookingPage() {
     }
   };
 
+  // Slots direct ophalen zodra de bezoeker stap 5 binnenkomt
   useEffect(() => {
-  if (step === 5) {
-    const todayStr = state.date || getLocalDateString(new Date());
-    if (!state.date) {
-      update({ date: todayStr });
+    if (step === 5) {
+      const todayStr = state.date || getLocalDateString(new Date());
+      if (!state.date) {
+        update({ date: todayStr });
+      }
+      fetchSlots(todayStr);
     }
-    fetchSlots(todayStr);
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [step]);
-  useEffect(() => {
-  if (step === 5) {
-    const targetDate = state.date || new Date().toISOString().split("T")[0];
-    if (!state.date) {
-      update({ date: targetDate });
-    }
-    fetchSlots(targetDate);
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [step]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   // Load brands on mount
   useEffect(() => {
     api.get("/brands").then((r) => setBrands(r.data));
@@ -173,15 +165,6 @@ export default function BookingPage() {
       api.get(`/repairs?device_id=${state.device.id}`).then((r) => setRepairs(r.data));
     }
   }, [state.device]);
-
-  // Load availability when date changes
-  useEffect(() => {
-    if (state.date && step === 5) {
-      setAvailableSlots({ slots: [], loading: true });
-      api.get(`/availability?date=${state.date}`).then((r) => setAvailableSlots({ slots: r.data.slots || [], loading: false }));
-    }
-  }, [state.date, step]);
-
   const setStep = (n) => update({ step: n });
 
   const canNext = useMemo(() => {
@@ -578,7 +561,7 @@ export default function BookingPage() {
                   type="button"
                   disabled={isPast}
                   onClick={() => {
-                    if (isPast) return;
+                    if (isPast || state.date === isoDate) return;
                     update({ date: isoDate, time: "" });
                     fetchSlots(isoDate);
                   }}
