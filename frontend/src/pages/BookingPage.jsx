@@ -117,16 +117,16 @@ export default function BookingPage() {
     }
   };
 
-  // Direct laden bij binnenkomst op stap 5
   useEffect(() => {
-    if (step === 5) {
-      const todayStr = state.date || getLocalDateString(new Date());
-      if (!state.date) {
-        update({ date: todayStr });
-      }
-      fetchSlots(todayStr);
+  if (step === 5) {
+    const todayStr = state.date || getLocalDateString(new Date());
+    if (!state.date) {
+      update({ date: todayStr });
     }
-  }, [step]);
+    fetchSlots(todayStr);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [step]);
   useEffect(() => {
   if (step === 5) {
     const targetDate = state.date || new Date().toISOString().split("T")[0];
