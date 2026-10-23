@@ -1,21 +1,123 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { Calendar, CheckCircle2, Clock, Package } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, Package, Bell, BellRing } from "lucide-react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 
 const STATUS_LABEL = { pending: "In afwachting", confirmed: "Bevestigd", in_progress: "Bezig", ready: "Klaar voor afhalen", completed: "Afgerond", cancelled: "Geannuleerd" };
+
+// Helper om base64 string om te zetten naar Uint8Array voor pushManager
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState(null);
   const [recent, setRecent] = useState([]);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
+
   useEffect(() => {
     api.get("/admin/bookings/stats").then((r) => setStats(r.data));
     api.get("/admin/bookings").then((r) => setRecent(r.data.slice(0, 6)));
+
+    // Service worker registreren bij openen van het dashboard
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch((err) => {
+        console.error("SW registration error:", err);
+      });
+    }
+
+    if ("Notification" in window && Notification.permission === "granted") {
+      setPushEnabled(true);
+    }
   }, []);
+
+  const handleEnablePush = async () => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      toast.error("Pushmeldingen worden niet ondersteund in deze browser (open de app vanaf je iPhone beginscherm).");
+      return;
+    }
+
+    setSubscribing(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        toast.error("Geen toestemming gegeven voor meldingen in iOS.");
+        setSubscribing(false);
+        return;
+      }
+
+      // Haal publieke VAPID sleutel op
+      const vapidRes = await api.get("/admin/vapid-public-key");
+      const publicKey = vapidRes.data.publicKey;
+      if (!publicKey) {
+        toast.error("VAPID_PUBLIC_KEY ontbreekt in backend configuratie.");
+        setSubscribing(false);
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      let subscription = await reg.pushManager.getSubscription();
+
+      if (!subscription) {
+        subscription = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+      }
+
+      // Stuur subscription naar backend
+      await api.post("/admin/subscribe-push", subscription.toJSON());
+      setPushEnabled(true);
+      toast.success("Pushmeldingen succesvol geactiveerd voor deze telefoon!");
+    } catch (e) {
+      console.error(e);
+      toast.error("Kon meldingen niet inschakelen.");
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
   return (
     <div>
-      <h1 className="text-3xl tracking-tight font-semibold text-[#111111]">Dashboard.</h1>
-      <p className="mt-2 text-[14px] text-[#666666]">Een snel overzicht van je operatie.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl tracking-tight font-semibold text-[#111111]">Dashboard.</h1>
+          <p className="mt-2 text-[14px] text-[#666666]">Een snel overzicht van je operatie.</p>
+        </div>
+
+        {/* Meldingen inschakelen knop */}
+        <button
+          type="button"
+          onClick={handleEnablePush}
+          disabled={subscribing || pushEnabled}
+          className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-[13px] font-medium transition-all border ${
+            pushEnabled
+              ? "bg-[#FAFAFA] text-emerald-700 border-emerald-200"
+              : "bg-white text-[#111111] border-[#EAEAEA] hover:border-black shadow-sm"
+          }`}
+        >
+          {pushEnabled ? (
+            <>
+              <BellRing className="h-4 w-4 text-emerald-600" />
+              Meldingen actief op dit toestel
+            </>
+          ) : (
+            <>
+              <Bell className="h-4 w-4 text-[#111111]" />
+              {subscribing ? "Activeren..." : "Pushmeldingen inschakelen"}
+            </>
+          )}
+        </button>
+      </div>
 
       <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
         {[

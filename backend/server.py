@@ -10,7 +10,8 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
-
+import json
+from pywebpush import webpush, WebPushException
 import logging
 import shop_models
 from shop_routes import router as shop_router
@@ -117,6 +118,29 @@ api = APIRouter(prefix="/api")
 app.include_router(shop_router)
 app.include_router(upload_router)
 app.include_router(payment_router, prefix="/api")
+# In-memory opslag voor jouw geregistreerde admin telefoons/browsers
+ADMIN_PUSH_SUBSCRIPTIONS = []
+
+def send_admin_push(title: str, body: str):
+    vapid_priv = os.environ.get("VAPID_PRIVATE_KEY")
+    if not vapid_priv:
+        logger.warning("VAPID_PRIVATE_KEY niet ingesteld; pushbericht overgeslagen.")
+        return
+        
+    for sub in list(ADMIN_PUSH_SUBSCRIPTIONS):
+        try:
+            webpush(
+                subscription_info=sub,
+                data=json.dumps({"title": title, "body": body}),
+                vapid_private_key=vapid_priv,
+                vapid_claims={"sub": "mailto:info@refixion.nl"}
+            )
+        except WebPushException as ex:
+            logger.error(f"Push notification error: {ex}")
+            if "410" in str(ex) or "404" in str(ex):
+                ADMIN_PUSH_SUBSCRIPTIONS.remove(sub)
+        except Exception as e:
+            logger.error(f"Onverwachte push fout: {e}")
 CALCOM_API_KEY = os.environ.get("CALCOM_API_KEY")
 CALCOM_EVENT_TYPE_ID = os.environ.get("CALCOM_EVENT_TYPE_ID") # of hardcoded ID van je event
 @api.get("/debug-routes")
@@ -290,6 +314,15 @@ async def get_availability(date_str: str = Query(..., alias="date"), session: As
     available = [s for s in slots if s not in booked_times]
     return {"slots": available, "closed": False}
 
+@api.get("/admin/vapid-public-key")
+async def get_vapid_public_key():
+    return {"publicKey": os.environ.get("VAPID_PUBLIC_KEY", "")}
+
+@api.post("/admin/subscribe-push")
+async def subscribe_push(sub: dict):
+    if sub not in ADMIN_PUSH_SUBSCRIPTIONS:
+        ADMIN_PUSH_SUBSCRIPTIONS.append(sub)
+    return {"status": "ok", "total": len(ADMIN_PUSH_SUBSCRIPTIONS)}
 
 # ------- Booking -------
 def _generate_reference() -> str:
@@ -803,10 +836,10 @@ async def create_booking(payload: BookingIn, request: Request, session: AsyncSes
         last_name=payload.last_name,
         email=payload.email,
         phone=payload.phone,
-        street=payload.street,
-        house_number=payload.house_number,
-        postal_code=payload.postal_code,
-        city=payload.city,
+        street=payload.street or "",
+        house_number=payload.house_number or "",
+        postal_code=payload.postal_code or "",
+        city=payload.city or "",
         notes=payload.notes or "",
         duration_minutes=repair.duration_minutes if repair.duration_minutes is not None else 60,
         price_eur=price,
@@ -823,13 +856,20 @@ async def create_booking(payload: BookingIn, request: Request, session: AsyncSes
 
     booking_dict = booking_to_dict(booking)
 
-    # Send emails (fire and forget best-effort)
+    # 1. E-mails versturen
     internal_to = os.environ.get("INTERNAL_NOTIFICATION_EMAIL", "refixionstore@gmail.com")
     await _send_email(internal_to, f"Nieuwe reparatieboeking – {payload.first_name} {payload.last_name}", _internal_email_html(booking_dict), session)
     await _send_email(payload.email, "Uw Refixion reparatieboeking", _customer_email_html(booking_dict, ws), session)
-    await _send_telegram_notification(doc)
-    return {"reference": ref, "id": booking.id, "status": "pending", "total_price": total}
+    
+    # 2. Telegram notificatie (met booking_dict i.p.v. doc)
+    await _send_telegram_notification(booking_dict)
 
+    # 3. Directe pushmelding naar je iPhone PWA app
+    push_title = f"Nieuwe boeking! ({ref})"
+    push_body = f"{payload.first_name} {payload.last_name}: {brand.name} {device.name} ({repair.name}) op {payload.appointment_date} om {payload.appointment_time}"
+    send_admin_push(push_title, push_body)
+
+    return {"reference": ref, "id": booking.id, "status": "pending", "total_price": total}
 
 @api.get("/bookings/{reference}")
 async def get_booking_public(reference: str, session: AsyncSession = Depends(get_session)):
