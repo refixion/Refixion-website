@@ -17,7 +17,7 @@ import BookingSuccessPage from "@/pages/BookingSuccessPage";
 import AdminLoginPage from "@/pages/admin/AdminLoginPage";
 import AdminLayout from "@/pages/admin/AdminLayout";
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
-import AdminCampaignsPage from "./pages/admin/AdminCampaignsPage";
+import AdminCampaignsPage from "@/pages/admin/AdminCampaignsPage";
 import AdminBookingsPage from "@/pages/admin/AdminBookingsPage";
 import AdminRepairMethodsPage from "@/pages/admin/AdminRepairMethodsPage";
 import AdminWorkshopPage from "@/pages/admin/AdminWorkshopPage";
