@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { toast } from "sonner";
-import { Gift, CheckCircle, XCircle, Clock, Zap, Search, ShieldCheck } from "lucide-react";
+import { Gift, CheckCircle2, XCircle, Clock, Zap, Search, ShieldCheck } from "lucide-react";
 
 export default function AdminCampaignsPage() {
   const [campaigns, setCampaigns] = useState([]);
