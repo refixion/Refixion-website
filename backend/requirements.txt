@@ -26,4 +26,5 @@ requests==2.34.2
 
 reportlab==5.0.0
 
-pywebpush
+cryptography==42.0.8
+pywebpush==1.14.0
