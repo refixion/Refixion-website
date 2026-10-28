@@ -120,6 +120,14 @@ app.include_router(upload_router)
 app.include_router(payment_router, prefix="/api")
 # In-memory opslag voor jouw geregistreerde admin telefoons/browsers
 ADMIN_PUSH_SUBSCRIPTIONS = []
+async def get_stored_push_subscriptions(session: AsyncSession) -> list:
+    row = await session.get(Setting, "admin_push_subscriptions")
+    if not row or not row.value:
+        return []
+    try:
+        return json.loads(row.value)
+    except Exception:
+        return []
 
 async def send_admin_push(title: str, body: str, session: AsyncSession):
     vapid_priv = os.environ.get("VAPID_PRIVATE_KEY")
@@ -157,7 +165,7 @@ async def send_admin_push(title: str, body: str, session: AsyncSession):
     if len(valid_subs) != len(subs):
         await upsert_set(session, Setting, {"key": "admin_push_subscriptions", "value": json.dumps(valid_subs)}, index_elements=["key"])
         await session.commit()
-        
+
 CALCOM_API_KEY = os.environ.get("CALCOM_API_KEY")
 CALCOM_EVENT_TYPE_ID = os.environ.get("CALCOM_EVENT_TYPE_ID") # of hardcoded ID van je event
 @api.get("/debug-routes")
@@ -360,7 +368,7 @@ async def test_push(session: AsyncSession = Depends(get_session)):
     print("DEBUG: Handmatige test-push getriggerd!")
     await send_admin_push("Refixion Test", "Als je dit ziet werkt je iOS pushmelding!", session)
     return {"status": "ok"}
-
+    
 # ------- Booking -------
 def _generate_reference() -> str:
     return "RFX-" + _secrets.token_hex(3).upper()
