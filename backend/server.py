@@ -368,7 +368,7 @@ async def test_push(session: AsyncSession = Depends(get_session)):
     print("DEBUG: Handmatige test-push getriggerd!")
     await send_admin_push("Refixion Test", "Als je dit ziet werkt je iOS pushmelding!", session)
     return {"status": "ok"}
-    
+
 # ------- Booking -------
 def _generate_reference() -> str:
     return "RFX-" + _secrets.token_hex(3).upper()
@@ -912,7 +912,7 @@ async def create_booking(payload: BookingIn, request: Request, session: AsyncSes
     # 3. Directe pushmelding naar je iPhone PWA app
     push_title = f"Nieuwe boeking! ({ref})"
     push_body = f"{payload.first_name} {payload.last_name}: {brand.name} {device.name} ({repair.name}) op {payload.appointment_date} om {payload.appointment_time}"
-    send_admin_push(push_title, push_body)
+    await send_admin_push(push_title, push_body, session)
 
     return {"reference": ref, "id": booking.id, "status": "pending", "total_price": total}
 
