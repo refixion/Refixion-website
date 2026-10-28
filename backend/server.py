@@ -121,26 +121,43 @@ app.include_router(payment_router, prefix="/api")
 # In-memory opslag voor jouw geregistreerde admin telefoons/browsers
 ADMIN_PUSH_SUBSCRIPTIONS = []
 
-def send_admin_push(title: str, body: str):
+async def send_admin_push(title: str, body: str, session: AsyncSession):
     vapid_priv = os.environ.get("VAPID_PRIVATE_KEY")
     if not vapid_priv:
-        logger.warning("VAPID_PRIVATE_KEY niet ingesteld; pushbericht overgeslagen.")
+        print("FOUT: VAPID_PRIVATE_KEY ontbreekt in environment variables!")
         return
-        
-    for sub in list(ADMIN_PUSH_SUBSCRIPTIONS):
+
+    subs = await get_stored_push_subscriptions(session)
+    print(f"DEBUG: send_admin_push gestart. Aantal ontvangers: {len(subs)}")
+    
+    if not subs:
+        print("WAARSCHUWING: Geen subscriptions gevonden in de database!")
+        return
+
+    valid_subs = []
+    for sub in subs:
         try:
+            print(f"DEBUG: Push versturen naar endpoint: {sub.get('endpoint')[:40]}...")
             webpush(
                 subscription_info=sub,
                 data=json.dumps({"title": title, "body": body}),
                 vapid_private_key=vapid_priv,
                 vapid_claims={"sub": "mailto:info@refixion.nl"}
             )
+            print("DEBUG: Push succesvol afgeleverd bij Apple Push Service!")
+            valid_subs.append(sub)
         except WebPushException as ex:
-            logger.error(f"Push notification error: {ex}")
-            if "410" in str(ex) or "404" in str(ex):
-                ADMIN_PUSH_SUBSCRIPTIONS.remove(sub)
+            print(f"FOUT bij webpush: {ex}")
+            if "410" not in str(ex) and "404" not in str(ex):
+                valid_subs.append(sub)
         except Exception as e:
-            logger.error(f"Onverwachte push fout: {e}")
+            print(f"FOUT onverwacht: {e}")
+            valid_subs.append(sub)
+
+    if len(valid_subs) != len(subs):
+        await upsert_set(session, Setting, {"key": "admin_push_subscriptions", "value": json.dumps(valid_subs)}, index_elements=["key"])
+        await session.commit()
+        
 CALCOM_API_KEY = os.environ.get("CALCOM_API_KEY")
 CALCOM_EVENT_TYPE_ID = os.environ.get("CALCOM_EVENT_TYPE_ID") # of hardcoded ID van je event
 @api.get("/debug-routes")
@@ -316,13 +333,33 @@ async def get_availability(date_str: str = Query(..., alias="date"), session: As
 
 @api.get("/admin/vapid-public-key")
 async def get_vapid_public_key():
-    return {"publicKey": os.environ.get("VAPID_PUBLIC_KEY", "")}
+    key = os.environ.get("VAPID_PUBLIC_KEY", "")
+    print(f"DEBUG: VAPID_PUBLIC_KEY opgevraagd: {bool(key)} (lengte: {len(key)})")
+    return {"publicKey": key}
 
 @api.post("/admin/subscribe-push")
-async def subscribe_push(sub: dict):
-    if sub not in ADMIN_PUSH_SUBSCRIPTIONS:
-        ADMIN_PUSH_SUBSCRIPTIONS.append(sub)
-    return {"status": "ok", "total": len(ADMIN_PUSH_SUBSCRIPTIONS)}
+async def subscribe_push(sub: dict, session: AsyncSession = Depends(get_session)):
+    print(f"DEBUG: subscribe_push aangeroepen met endpoint: {sub.get('endpoint')}")
+    subs = await get_stored_push_subscriptions(session)
+    
+    sub_endpoint = sub.get("endpoint")
+    existing_endpoints = [s.get("endpoint") for s in subs]
+    
+    if sub_endpoint and sub_endpoint not in existing_endpoints:
+        subs.append(sub)
+        await upsert_set(session, Setting, {"key": "admin_push_subscriptions", "value": json.dumps(subs)}, index_elements=["key"])
+        await session.commit()
+        print(f"DEBUG: Nieuwe subscription opgeslagen! Totaal: {len(subs)}")
+    else:
+        print("DEBUG: Subscription bestond al in database.")
+        
+    return {"status": "ok", "total": len(subs)}
+
+@api.post("/admin/test-push")
+async def test_push(session: AsyncSession = Depends(get_session)):
+    print("DEBUG: Handmatige test-push getriggerd!")
+    await send_admin_push("Refixion Test", "Als je dit ziet werkt je iOS pushmelding!", session)
+    return {"status": "ok"}
 
 # ------- Booking -------
 def _generate_reference() -> str:

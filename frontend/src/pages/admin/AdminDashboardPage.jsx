@@ -86,6 +86,19 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleTestPush = async () => {
+    try {
+      toast.info("Test push versturen...");
+      const res = await api.post("/admin/test-push");
+      if (res.data.status === "ok") {
+        toast.success("Test-signaal verzonden naar de backend!");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Fout bij aanroepen test-push.");
+    }
+  };
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -94,29 +107,41 @@ export default function AdminDashboardPage() {
           <p className="mt-2 text-[14px] text-[#666666]">Een snel overzicht van je operatie.</p>
         </div>
 
-        {/* Meldingen inschakelen knop */}
-        <button
-          type="button"
-          onClick={handleEnablePush}
-          disabled={subscribing || pushEnabled}
-          className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-[13px] font-medium transition-all border ${
-            pushEnabled
-              ? "bg-[#FAFAFA] text-emerald-700 border-emerald-200"
-              : "bg-white text-[#111111] border-[#EAEAEA] hover:border-black shadow-sm"
-          }`}
-        >
-          {pushEnabled ? (
-            <>
-              <BellRing className="h-4 w-4 text-emerald-600" />
-              Meldingen actief op dit toestel
-            </>
-          ) : (
-            <>
-              <Bell className="h-4 w-4 text-[#111111]" />
-              {subscribing ? "Activeren..." : "Pushmeldingen inschakelen"}
-            </>
+        {/* Knoppen voor meldingen en test */}
+        <div className="flex items-center gap-2">
+          {pushEnabled && (
+            <button
+              type="button"
+              onClick={handleTestPush}
+              className="rounded-xl px-3.5 py-2.5 text-[12px] sm:text-[13px] font-medium bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border border-neutral-200 transition-colors"
+            >
+              Stuur test melding
+            </button>
           )}
-        </button>
+
+          <button
+            type="button"
+            onClick={handleEnablePush}
+            disabled={subscribing || pushEnabled}
+            className={`inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-[12px] sm:text-[13px] font-medium transition-all border ${
+              pushEnabled
+                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-800 active:scale-95 shadow-sm"
+            }`}
+          >
+            {pushEnabled ? (
+              <>
+                <BellRing className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                <span>iPhone Meldingen actief</span>
+              </>
+            ) : (
+              <>
+                <Bell className="h-3.5 w-3.5 shrink-0" />
+                <span>{subscribing ? "Koppelen..." : "Meldingen aanzetten"}</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
