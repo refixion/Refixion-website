@@ -1214,8 +1214,12 @@ async def admin_delete_faq(faq_id: str, _: dict = Depends(admin_only), session: 
     return {"ok": True}
 
 def _generate_promo_code() -> str:
-    # Genereert een compacte, schone code zoals RFX-9F3A
-    return f"RFX-{secrets.token_hex(2).upper()}"
+# Veilige tekenset zonder verwarrende tekens (geen 0, O, 1, I, L)
+    chars = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+    part1 = "".join(secrets.choice(chars) for _ in range(4))
+    part2 = "".join(secrets.choice(chars) for _ in range(4))
+    part3 = "".join(secrets.choice(chars) for _ in range(4))
+    return f"RFX-{part1}-{part2}-{part3}"
 
 # 1. Nieuwe actie-deelnemer invoeren
 @api.post("/admin/campaigns")
@@ -1331,50 +1335,63 @@ async def update_campaign_status(
     await session.commit()
     return {"status": item.status, "code": item.code}
 
-# 4. Code Checker: Code valideren via scan/invoer
 @api.get("/admin/campaigns/check/{code}")
 async def check_campaign_code(
     code: str,
     _: dict = Depends(admin_only),
     session: AsyncSession = Depends(get_session)
 ):
-    clean_code = code.strip().upper()
-    item = (await session.execute(select(CampaignCode).where(CampaignCode.code == clean_code))).scalar_one_or_none()
-    if not item:
-        raise HTTPException(status_code=404, detail="Kortingscode niet gevonden")
+    stmt = select(CampaignCode).where(CampaignCode.code == code.strip().upper())
+    res = await session.execute(stmt)
+    item = res.scalar_one_or_none()
 
+    if not item:
+        raise HTTPException(status_code=404, detail="Kortingscode niet gevonden.")
+
+    # Controleer of de code al verzilverd is en of de 24 uur voorbij zijn
     if item.status == "used":
-        raise HTTPException(status_code=400, detail="Deze code is al verzilverd")
-    if item.status == "pending":
-        raise HTTPException(status_code=400, detail="Deze code wacht nog op 6-uurs controle")
+        if item.redeemed_at:
+            verval_tijd = item.redeemed_at + timedelta(days=1)
+            if datetime.now(timezone.utc) > verval_tijd:
+                raise HTTPException(status_code=400, detail="Deze code is meer dan 24 uur geleden verzilverd en definitief vervallen.")
+        raise HTTPException(status_code=400, detail="Deze code is reeds verzilverd.")
+
     if item.status == "rejected":
-        raise HTTPException(status_code=400, detail="Deze actie is afgekeurd")
+        raise HTTPException(status_code=400, detail="Deze actiedeelname is afgewezen.")
 
     return {
-        "valid": True,
         "id": item.id,
         "code": item.code,
-        "discount_eur": item.discount_eur,
         "snapchat_handle": item.snapchat_handle,
-        "email": item.email,
+        "discount_eur": item.discount_eur,
+        "status": item.status,
+        "can_redeem": item.status in ["active", "pending"]  # active of direct via override
     }
 
-# 5. Verzilveren: direct op 'used' zetten of verwijderen
 @api.post("/admin/campaigns/redeem/{code}")
 async def redeem_campaign_code(
     code: str,
     _: dict = Depends(admin_only),
     session: AsyncSession = Depends(get_session)
 ):
-    clean_code = code.strip().upper()
-    item = (await session.execute(select(CampaignCode).where(CampaignCode.code == clean_code))).scalar_one_or_none()
-    if not item or item.status != "active":
-        raise HTTPException(status_code=400, detail="Code niet geldig of al verbruikt")
+    stmt = select(CampaignCode).where(CampaignCode.code == code.strip().upper())
+    res = await session.execute(stmt)
+    item = res.scalar_one_or_none()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Kortingscode niet gevonden.")
+
+    if item.status == "used":
+        raise HTTPException(status_code=400, detail="Code is al verzilverd.")
 
     item.status = "used"
-    # Of session.delete(item) als je hem fysiek wilt verwijderen uit de DB
+    item.redeemed_at = datetime.now(timezone.utc)
     await session.commit()
-    return {"success": True, "message": f"Korting van €{item.discount_eur:.2f} succesvol verrekend!"}
+
+    return {
+        "message": f"Succesvol verzilverd! €{item.discount_eur:.2f} korting toegepast. Code vervalt over 24 uur definitief.",
+        "code": item.code
+    }
 
 # 6. Check endpoint dat controleert of er 6 uur voorbij is & pushmelding triggert
 @api.get("/admin/campaigns/cron-check")

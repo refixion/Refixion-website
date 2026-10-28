@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { api, formatApiErrorDetail } from "../../lib/api";
 import { toast } from "sonner";
-import { Sparkles, Check, X, Search, ShieldCheck, RefreshCw } from "lucide-react";
+import { Sparkles, Check, X, Search, ShieldCheck, RefreshCw, Camera, CameraOff } from "lucide-react";
 
 export default function AdminCampaignsPage() {
   const [campaigns, setCampaigns] = useState([]);
@@ -13,10 +13,14 @@ export default function AdminCampaignsPage() {
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Code Checker
+  // Code Checker & Scanner
   const [checkCode, setCheckCode] = useState("");
   const [checkedItem, setCheckedItem] = useState(null);
   const [checking, setChecking] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
 
   const fetchCampaigns = async () => {
     setLoading(true);
@@ -32,6 +36,7 @@ export default function AdminCampaignsPage() {
 
   useEffect(() => {
     fetchCampaigns();
+    return () => stopScanner();
   }, []);
 
   const handleCreate = async (e) => {
@@ -48,7 +53,7 @@ export default function AdminCampaignsPage() {
         marketing_consent: marketingConsent,
         discount_eur: 10.0,
       });
-      toast.success("Actie geregistreerd! 6-uur verificatietimer loopt.");
+      toast.success("Actie geregistreerd met beveiligde code!");
       setSnapchatHandle("");
       setEmail("");
       setMarketingConsent(false);
@@ -63,26 +68,31 @@ export default function AdminCampaignsPage() {
   const handleStatusUpdate = async (id, action) => {
     try {
       await api.patch(`/admin/campaigns/${id}/status?action=${action}`);
-      toast.success(action === "approve" ? "Goedgekeurd & QR-code mail verzonden!" : "Deelname afgewezen.");
+      toast.success(action === "approve" ? "Goedgekeurd & QR mail verzonden!" : "Deelname afgewezen.");
       fetchCampaigns();
     } catch (err) {
       toast.error(formatApiErrorDetail?.(err.response?.data?.detail) || "Kon status niet bijwerken");
     }
   };
 
-  const handleCheckCode = async (e) => {
-    e.preventDefault();
-    if (!checkCode.trim()) return;
+  const executeCheck = async (codeToTest) => {
+    if (!codeToTest?.trim()) return;
     setChecking(true);
     setCheckedItem(null);
     try {
-      const res = await api.get(`/admin/campaigns/check/${checkCode.trim()}`);
+      const res = await api.get(`/admin/campaigns/check/${codeToTest.trim()}`);
       setCheckedItem(res.data);
+      toast.success("Code gevonden!");
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Ongeldige of verlopen kortingscode.");
+      toast.error(err.response?.data?.detail || "Ongeldige of verlopen code.");
     } finally {
       setChecking(false);
     }
+  };
+
+  const handleCheckCode = (e) => {
+    e.preventDefault();
+    executeCheck(checkCode);
   };
 
   const handleRedeem = async (codeToRedeem) => {
@@ -93,8 +103,56 @@ export default function AdminCampaignsPage() {
       setCheckCode("");
       fetchCampaigns();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Fout bij verzilveren van korting.");
+      toast.error(err.response?.data?.detail || "Fout bij verzilveren.");
     }
+  };
+
+  // Camera QR Scanner functionaliteit
+  const startScanner = async () => {
+    setScanning(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+
+      // Check of BarcodeDetector beschikbaar is in browser (iOS 17+ Safari & Chrome)
+      if ("BarcodeDetector" in window) {
+        const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+        const interval = setInterval(async () => {
+          if (!videoRef.current || videoRef.current.readyState < 2) return;
+          try {
+            const barcodes = await detector.detect(videoRef.current);
+            if (barcodes.length > 0) {
+              const detectedCode = barcodes[0].rawValue;
+              clearInterval(interval);
+              stopScanner();
+              setCheckCode(detectedCode);
+              executeCheck(detectedCode);
+            }
+          } catch (e) {
+            // Scanner frame scan fout negeren
+          }
+        }, 400);
+      } else {
+        toast.info("Richt de camera op de QR code. Tik op de video zodra hij scherp is.");
+      }
+    } catch (err) {
+      toast.error("Kan camera niet openen. Controleer camerarechten.");
+      setScanning(false);
+    }
+  };
+
+  const stopScanner = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setScanning(false);
   };
 
   return (
@@ -111,16 +169,16 @@ export default function AdminCampaignsPage() {
         </button>
       </div>
       <p className="text-[14px] text-[#666666]">
-        Registreer Snapchat verhalen, verifieer claims met override en verzilver kortingscodes bij reparatie.
+        Beheer acties, scan QR-codes met je camera en verzilver €10 korting (24 uur geldig na inwisselen).
       </p>
 
-      {/* Grid: Nieuwe Deelname & Code Verifiëren */}
+      {/* Grid: Formulier & Verifiëren met Scanner */}
       <div className="mt-8 grid md:grid-cols-2 gap-6">
         {/* Kaart 1: Registreren */}
         <div className="rounded-2xl bg-white border border-[#EAEAEA] p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="h-5 w-5 text-[#111111]" strokeWidth={1.5} />
-            <h2 className="text-[16px] font-semibold text-[#111111]">Nieuwe Snapchat Deelname</h2>
+            <h2 className="text-[16px] font-semibold text-[#111111]">Nieuwe Deelname</h2>
           </div>
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
@@ -129,7 +187,7 @@ export default function AdminCampaignsPage() {
               </label>
               <input
                 type="text"
-                placeholder="@gebruikersnaam"
+                placeholder="@klant"
                 value={snapchatHandle}
                 onChange={(e) => setSnapchatHandle(e.target.value)}
                 className="w-full rounded-xl border border-[#EAEAEA] px-3.5 py-2.5 text-[13px] outline-none focus:border-[#111111]"
@@ -141,7 +199,7 @@ export default function AdminCampaignsPage() {
               </label>
               <input
                 type="email"
-                placeholder="klant@voorbeeld.nl"
+                placeholder="klant@mail.nl"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-xl border border-[#EAEAEA] px-3.5 py-2.5 text-[13px] outline-none focus:border-[#111111]"
@@ -156,7 +214,7 @@ export default function AdminCampaignsPage() {
               />
               <span className="inline-flex items-center gap-1.5">
                 <ShieldCheck className="h-4 w-4 text-[#10B981]" strokeWidth={1.5} />
-                Toestemming voor marketingmails (AVG)
+                Toestemming voor marketing (AVG)
               </span>
             </label>
             <button
@@ -164,21 +222,42 @@ export default function AdminCampaignsPage() {
               disabled={saving}
               className="w-full rounded-full bg-[#111111] text-white py-2.5 text-[13px] font-medium hover:bg-[#333333] transition disabled:opacity-50"
             >
-              {saving ? "Opslaan..." : "Deelname starten (6-uur timer)"}
+              {saving ? "Opslaan..." : "Deelname starten"}
             </button>
           </form>
         </div>
 
-        {/* Kaart 2: Code Checker & Verzilveren */}
+        {/* Kaart 2: Scanner & Checker */}
         <div className="rounded-2xl bg-white border border-[#EAEAEA] p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <Search className="h-5 w-5 text-[#111111]" strokeWidth={1.5} />
-            <h2 className="text-[16px] font-semibold text-[#111111]">Kortingscode Verifiëren</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Search className="h-5 w-5 text-[#111111]" strokeWidth={1.5} />
+              <h2 className="text-[16px] font-semibold text-[#111111]">Kortingscode Checken</h2>
+            </div>
+            <button
+              type="button"
+              onClick={scanning ? stopScanner : startScanner}
+              className={`rounded-full px-3.5 py-1.5 text-[12px] font-medium inline-flex items-center gap-1.5 transition ${
+                scanning ? "bg-red-50 text-red-600 border border-red-200" : "bg-neutral-100 text-neutral-800 hover:bg-neutral-200"
+              }`}
+            >
+              {scanning ? <CameraOff className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5" />}
+              {scanning ? "Sluit Camera" : "Scan QR Camera"}
+            </button>
           </div>
+
+          {/* Camera Viewfinder */}
+          {scanning && (
+            <div className="mb-4 rounded-xl overflow-hidden bg-black aspect-video relative flex items-center justify-center">
+              <video ref={videoRef} className="w-full h-full object-cover" playsInline />
+              <div className="absolute inset-0 border-2 border-dashed border-white/50 m-8 rounded-lg pointer-events-none" />
+            </div>
+          )}
+
           <form onSubmit={handleCheckCode} className="flex gap-2 mb-4">
             <input
               type="text"
-              placeholder="RFX-XXXX"
+              placeholder="RFX-XXXX-XXXX-XXXX"
               value={checkCode}
               onChange={(e) => setCheckCode(e.target.value.toUpperCase())}
               className="flex-1 uppercase font-mono tracking-wider rounded-xl border border-[#EAEAEA] px-3.5 py-2.5 text-[13px] outline-none focus:border-[#111111]"
@@ -188,7 +267,7 @@ export default function AdminCampaignsPage() {
               disabled={checking}
               className="rounded-full bg-[#111111] text-white px-5 py-2.5 text-[13px] font-medium hover:bg-[#333333] transition disabled:opacity-50"
             >
-              Checken
+              Check
             </button>
           </form>
 
@@ -196,7 +275,7 @@ export default function AdminCampaignsPage() {
             <div className="rounded-xl border border-[#10B981]/30 bg-[#10B981]/10 p-4">
               <div className="flex items-center justify-between">
                 <span className="text-[12px] font-semibold text-[#065F46]">Geldige kortingscode</span>
-                <span className="font-mono text-[14px] font-bold text-[#065F46]">{checkedItem.code}</span>
+                <span className="font-mono text-[13px] font-bold text-[#065F46]">{checkedItem.code}</span>
               </div>
               <p className="text-[13px] text-[#047857] mt-1 mb-3">
                 Korting: <b>€{checkedItem.discount_eur?.toFixed(2)}</b> voor <b>@{checkedItem.snapchat_handle}</b>
@@ -216,7 +295,7 @@ export default function AdminCampaignsPage() {
       {/* Tabel met overzicht van acties */}
       <div className="mt-8 rounded-2xl bg-white border border-[#EAEAEA] shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-[#EAEAEA]">
-          <h3 className="text-[15px] font-medium text-[#111111]">Overzicht Deelnames</h3>
+          <h3 className="text-[15px] font-medium text-[#111111]">Lopende & Recente Codes</h3>
         </div>
         <div className="divide-y divide-[#EAEAEA]">
           {campaigns.length === 0 && (
@@ -225,9 +304,9 @@ export default function AdminCampaignsPage() {
           {campaigns.map((c) => (
             <div key={c.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold text-[14px] text-[#111111]">@{c.snapchat_handle}</span>
-                  <span className="font-mono text-[12px] px-2 py-0.5 rounded bg-[#F5F5F5] text-[#555555]">
+                  <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[#F5F5F5] text-[#555555]">
                     {c.code}
                   </span>
                   <span
@@ -247,7 +326,7 @@ export default function AdminCampaignsPage() {
                 <div className="text-[12px] text-[#666666] mt-1">{c.email}</div>
               </div>
 
-              {/* Actieknoppen */}
+              {/* Knoppen */}
               <div className="flex items-center gap-2">
                 {c.status === "pending" && (
                   <>

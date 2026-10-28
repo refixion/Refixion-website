@@ -358,5 +358,6 @@ class CampaignCode(Base):
     status = Column(String, default="pending")  # pending, active, used, rejected
     marketing_consent = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=datetime.now)
+    redeemed_at = Column(DateTime(timezone=True), nullable=True)
     check_at = Column(DateTime(timezone=True), nullable=False)
     notified = Column(Boolean, default=False)
