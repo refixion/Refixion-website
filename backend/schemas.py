@@ -8,7 +8,12 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, EmailStr
 
-
+class CampaignCodeCreate(BaseModel):
+    snapchat_handle: str
+    email: EmailStr
+    marketing_consent: bool = False
+    discount_eur: float = 10.0
+    
 class LoginIn(BaseModel):
     email: EmailStr
     password: str

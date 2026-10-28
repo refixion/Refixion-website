@@ -10,39 +10,48 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
-import json
-from pywebpush import webpush, WebPushException
-import logging
-import shop_models
-from shop_routes import router as shop_router
-from upload_routes import router as upload_router
-from payment_routes import router as payment_router
-#from deal_hunter import router as deal_hunter_router
 
+import json
+import logging
 import os
-import secrets as _secrets
-from datetime import date, datetime, time, timedelta
+import secrets
+from datetime import date, datetime, time, timedelta, timezone
 from email.message import EmailMessage
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 import aiosmtplib
-from fastapi import Depends, FastAPI, APIRouter, HTTPException, Query, Request, Response, UploadFile, File
-from starlette.middleware.cors import CORSMiddleware
+import httpx
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
+from pywebpush import WebPushException, webpush
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from database import engine, Base
+from starlette.middleware.cors import CORSMiddleware
+
+import shop_models
 from auth import (
     ACCESS_TOKEN_MINUTES,
     create_access_token,
     get_current_admin,
     verify_password,
 )
-from database import AsyncSessionLocal, engine, get_session
+from database import AsyncSessionLocal, Base, engine, get_session
 from db_utils import upsert_set
 from models import (
     Booking,
     Brand,
+    CampaignCode,
     Device,
     EmailSettings,
     Faq,
@@ -58,17 +67,19 @@ from models import (
     Warranty,
     Workshop,
 )
+from payment_routes import router as payment_router
 from schemas import (
     BookingIn,
     BookingStatusIn,
+    CampaignCodeCreate,
     EmailSettingsIn,
     LoginIn,
     PartOptionIn,
     RepairMethodIn,
     RepairPriceOverride,
+    ReturnRequest,
     WarrantyIn,
     WorkshopIn,
-    ReturnRequest,
 )
 from seed import seed_all
 from serializers import (
@@ -88,9 +99,9 @@ from serializers import (
     warranty_to_dict,
     workshop_to_dict,
 )
+from shop_routes import router as shop_router
+from upload_routes import router as upload_router
 from utils import new_id, now_iso
-import httpx
-from zoneinfo import ZoneInfo
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("refixion")
@@ -1202,6 +1213,181 @@ async def admin_delete_faq(faq_id: str, _: dict = Depends(admin_only), session: 
     await session.commit()
     return {"ok": True}
 
+def _generate_promo_code() -> str:
+    # Genereert een compacte, schone code zoals RFX-9F3A
+    return f"RFX-{secrets.token_hex(2).upper()}"
+
+# 1. Nieuwe actie-deelnemer invoeren
+@api.post("/admin/campaigns")
+async def create_campaign_entry(
+    payload: CampaignCodeCreate,
+    _: dict = Depends(admin_only),
+    session: AsyncSession = Depends(get_session)
+):
+    now = datetime.now(timezone.utc)
+    check_time = now + timedelta(hours=6)
+    unique_code = _generate_promo_code()
+
+    # Zorg dat de code echt uniek is
+    while (await session.execute(select(CampaignCode).where(CampaignCode.code == unique_code))).scalar_one_or_none():
+        unique_code = _generate_promo_code()
+
+    item = CampaignCode(
+        id=f"camp-{new_id()[:8]}",
+        snapchat_handle=payload.snapchat_handle.strip().lstrip("@"),
+        email=payload.email.strip().lower(),
+        code=unique_code,
+        discount_eur=payload.discount_eur,
+        status="pending",
+        marketing_consent=payload.marketing_consent,
+        created_at=now,
+        check_at=check_time,
+        notified=False,
+    )
+    session.add(item)
+    await session.commit()
+    return {
+        "id": item.id,
+        "snapchat_handle": item.snapchat_handle,
+        "email": item.email,
+        "code": item.code,
+        "status": item.status,
+        "check_at": item.check_at.isoformat(),
+    }
+
+# 2. Overzicht ophalen van actiecodes in de Admin
+@api.get("/admin/campaigns")
+async def list_campaign_entries(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    _: dict = Depends(admin_only),
+    session: AsyncSession = Depends(get_session)
+):
+    stmt = select(CampaignCode).order_by(CampaignCode.created_at.desc())
+    if status_filter:
+        stmt = stmt.where(CampaignCode.status == status_filter)
+    rows = (await session.execute(stmt)).scalars().all()
+    return [
+        {
+            "id": r.id,
+            "snapchat_handle": r.snapchat_handle,
+            "email": r.email,
+            "code": r.code,
+            "discount_eur": r.discount_eur,
+            "status": r.status,
+            "marketing_consent": r.marketing_consent,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "check_at": r.check_at.isoformat() if r.check_at else None,
+        }
+        for r in rows
+    ]
+
+# 3. Status wijzigen (Goedkeuren / Afkeuren na 6 uur)
+@api.patch("/admin/campaigns/{campaign_id}/status")
+async def update_campaign_status(
+    campaign_id: str,
+    action: str = Query(..., regex="^(approve|reject)$"),
+    _: dict = Depends(admin_only),
+    session: AsyncSession = Depends(get_session)
+):
+    item = await session.get(CampaignCode, campaign_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Deelname niet gevonden")
+
+    if action == "approve":
+        item.status = "active"
+        # In Stap 2 triggeren we hier direct de mail met QR-code naar de klant!
+    else:
+        item.status = "rejected"
+
+    await session.commit()
+    return {"status": item.status, "code": item.code}
+
+# 4. Code Checker: Code valideren via scan/invoer
+@api.get("/admin/campaigns/check/{code}")
+async def check_campaign_code(
+    code: str,
+    _: dict = Depends(admin_only),
+    session: AsyncSession = Depends(get_session)
+):
+    clean_code = code.strip().upper()
+    item = (await session.execute(select(CampaignCode).where(CampaignCode.code == clean_code))).scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Kortingscode niet gevonden")
+
+    if item.status == "used":
+        raise HTTPException(status_code=400, detail="Deze code is al verzilverd")
+    if item.status == "pending":
+        raise HTTPException(status_code=400, detail="Deze code wacht nog op 6-uurs controle")
+    if item.status == "rejected":
+        raise HTTPException(status_code=400, detail="Deze actie is afgekeurd")
+
+    return {
+        "valid": True,
+        "id": item.id,
+        "code": item.code,
+        "discount_eur": item.discount_eur,
+        "snapchat_handle": item.snapchat_handle,
+        "email": item.email,
+    }
+
+# 5. Verzilveren: direct op 'used' zetten of verwijderen
+@api.post("/admin/campaigns/redeem/{code}")
+async def redeem_campaign_code(
+    code: str,
+    _: dict = Depends(admin_only),
+    session: AsyncSession = Depends(get_session)
+):
+    clean_code = code.strip().upper()
+    item = (await session.execute(select(CampaignCode).where(CampaignCode.code == clean_code))).scalar_one_or_none()
+    if not item or item.status != "active":
+        raise HTTPException(status_code=400, detail="Code niet geldig of al verbruikt")
+
+    item.status = "used"
+    # Of session.delete(item) als je hem fysiek wilt verwijderen uit de DB
+    await session.commit()
+    return {"success": True, "message": f"Korting van €{item.discount_eur:.2f} succesvol verrekend!"}
+
+# 6. Check endpoint dat controleert of er 6 uur voorbij is & pushmelding triggert
+@api.get("/admin/campaigns/cron-check")
+async def check_campaign_timers(
+    session: AsyncSession = Depends(get_session)
+):
+    now = datetime.now(timezone.utc)
+    stmt = select(CampaignCode).where(
+        CampaignCode.status == "pending",
+        CampaignCode.check_at <= now,
+        CampaignCode.notified == False
+    )
+    due_items = (await session.execute(stmt)).scalars().all()
+
+    notified_count = 0
+    for item in due_items:
+        title = "Check Snapchat Post!"
+        body = f"De 6 uur voor @{item.snapchat_handle} zijn voorbij. Controleer of het verhaal nog online staat."
+        await send_admin_push(title, body, session)
+        item.notified = True
+        notified_count += 1
+
+    if notified_count > 0:
+        await session.commit()
+
+    return {"checked": len(due_items), "notifications_sent": notified_count}
+
+@api.post("/admin/campaigns/test-expire-now")
+async def test_expire_campaign(
+    _: dict = Depends(admin_only),
+    session: AsyncSession = Depends(get_session)
+):
+    """Zet de check-tijd van de nieuwste pending actie direct op het verleden zodat de push meteen triggert."""
+    stmt = select(CampaignCode).where(CampaignCode.status == "pending").order_by(CampaignCode.created_at.desc()).limit(1)
+    item = (await session.execute(stmt)).scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Geen actieve wachtende actie gevonden om te testen")
+    
+    item.check_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    await session.commit()
+    # Trigger direct de cron check
+    return await check_campaign_timers(session)
 
 # ------- Admin: Part options -------
 @api.get("/admin/part-options")

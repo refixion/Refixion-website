@@ -43,6 +43,8 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Column,
+    DateTime,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -341,3 +343,18 @@ class Booking(Base):
 
     ip: Mapped[str] = mapped_column(String, nullable=False, default="")
     user_agent: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+
+class CampaignCode(Base):
+    __tablename__ = "campaign_codes"
+
+    id = Column(String, primary_key=True)
+    snapchat_handle = Column(String, nullable=False)
+    email = Column(String, nullable=False)
+    code = Column(String, unique=True, nullable=False, index=True)
+    discount_eur = Column(Float, default=10.0)
+    status = Column(String, default="pending")  # pending, active, used, rejected
+    marketing_consent = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    check_at = Column(DateTime(timezone=True), nullable=False)
+    notified = Column(Boolean, default=False)
