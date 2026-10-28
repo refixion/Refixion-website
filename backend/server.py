@@ -1281,7 +1281,34 @@ async def list_campaign_entries(
         for r in rows
     ]
 
-# 3. Status wijzigen (Goedkeuren / Afkeuren na 6 uur)
+def _campaign_reward_email_html(handle: str, code: str, discount: float) -> str:
+    # Genereert een directe QR-afbeelding URL op basis van alleen de tekst van de code
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={code}"
+    
+    return f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e5e5e5; border-radius: 16px; background-color: #ffffff;">
+      <h2 style="margin-top: 0; color: #111111; font-size: 20px;">Je Refixion kortingscode is klaar! 🎁</h2>
+      <p style="color: #444; font-size: 14px; line-height: 1.5;">
+        Hoi @{handle}, bedankt voor het delen van onze actie op je Snapchat verhaal! Hierbij ontvang je jouw persoonlijke kortingscode ter waarde van <b>€{discount:.2f}</b> op je volgende reparatie.
+      </p>
+
+      <div style="background-color: #f9f9f9; border: 2px dashed #111; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0;">
+        <span style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #666; font-weight: 600;">Jouw persoonlijke code</span>
+        <div style="font-size: 28px; font-weight: 800; letter-spacing: 3px; color: #111; margin: 8px 0 16px 0;">{code}</div>
+        <img src="{qr_url}" alt="Kortingscode QR" style="width: 150px; height: 150px; display: block; margin: 0 auto;" />
+        <p style="font-size: 11px; color: #888; margin-top: 10px; margin-bottom: 0;">Laat deze QR-code of code zien tijdens je afspraak.</p>
+      </div>
+
+      <p style="color: #666; font-size: 12px; line-height: 1.4;">
+        Deze kortingscode is eenmalig geldig bij inlevering van je toestel voor reparatie.
+      </p>
+      <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+      <p style="color: #999; font-size: 11px; text-align: center; margin: 0;">
+        Refixion · Telefoonreparatie & Refurbishment
+      </p>
+    </div>
+    """
+
 @api.patch("/admin/campaigns/{campaign_id}/status")
 async def update_campaign_status(
     campaign_id: str,
@@ -1295,7 +1322,9 @@ async def update_campaign_status(
 
     if action == "approve":
         item.status = "active"
-        # In Stap 2 triggeren we hier direct de mail met QR-code naar de klant!
+        # Stuur direct de e-mail met QR code naar de klant
+        email_html = _campaign_reward_email_html(item.snapchat_handle, item.code, item.discount_eur)
+        await _send_email(item.email, "Jouw €10,- Refixion Kortingscode!", email_html, session)
     else:
         item.status = "rejected"
 

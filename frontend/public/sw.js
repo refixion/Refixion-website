@@ -1,33 +1,40 @@
 self.addEventListener("push", (event) => {
-  let data = {};
+  let data = { title: "Refixion Notificatie", body: "Nieuwe update!", url: "/admin/campaigns" };
   try {
-    data = event.data ? event.data.json() : {};
+    if (event.data) {
+      data = event.data.json();
+    }
   } catch (e) {
-    data = { body: event.data ? event.data.text() : "" };
+    console.error("Fout bij parsen push data:", e);
   }
 
-  const title = data.title || "Nieuwe Reparatie Boeking!";
   const options = {
-    body: data.body || "Er is een nieuwe afspraak ingepland.",
-    icon: "/favicon.ico",
-    badge: "/favicon.ico",
-    data: { url: "/admin" },
+    body: data.body,
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    vibrate: [200, 100, 200],
+    data: {
+      url: data.url || "/admin/campaigns",
+    },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const targetUrl = event.notification.data?.url || "/admin/campaigns";
+
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if (client.url.includes("/admin") && "focus" in client) {
+          client.navigate(targetUrl);
           return client.focus();
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow("/admin");
+        return clients.openWindow(targetUrl);
       }
     })
   );

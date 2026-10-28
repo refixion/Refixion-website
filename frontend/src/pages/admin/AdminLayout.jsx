@@ -1,11 +1,13 @@
 import React from "react";
 import { Link, NavLink, Outlet, useNavigate, Navigate } from "react-router-dom";
-import { LayoutDashboard, Calendar, Wrench, Settings, Mail, Store, LogOut, Smartphone, LayoutTemplate, Search, ShieldCheck, ShoppingBag, ClipboardList } from "lucide-react";import { useAuth } from "../../lib/auth";
+import { LayoutDashboard, Calendar, Wrench, Settings, Gift, Mail, Store, LogOut, Smartphone, LayoutTemplate, Search, ShieldCheck, ShoppingBag, ClipboardList } from "lucide-react";
+import { useAuth } from "../../lib/auth";
 import { Toaster } from "sonner";
 import { LogoFull } from "../../components/site/Logo";
 
 const LINKS = [
   { to: "/admin", label: "Dashboard", Icon: LayoutDashboard, end: true },
+  { to: "/admin/campaigns", label: "Acties", icon: Gift },
   { to: "/admin/bookings", label: "Boekingen", Icon: Calendar },
   { to: "/admin/devices", label: "Toestellen & prijzen", Icon: Smartphone },
   { to: "/admin/shop", label: "Shop", Icon: ShoppingBag },
