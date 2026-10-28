@@ -35,6 +35,8 @@ Design notes (read before changing anything):
 """
 import uuid
 
+from datetime import datetime
+
 from sqlalchemy import (
     Boolean,
     Float,
@@ -355,6 +357,6 @@ class CampaignCode(Base):
     discount_eur = Column(Float, default=10.0)
     status = Column(String, default="pending")  # pending, active, used, rejected
     marketing_consent = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=datetime.now)
     check_at = Column(DateTime(timezone=True), nullable=False)
     notified = Column(Boolean, default=False)
