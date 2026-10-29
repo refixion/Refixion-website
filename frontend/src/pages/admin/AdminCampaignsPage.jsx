@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { api, formatApiErrorDetail } from "../../lib/api";
 import { toast } from "sonner";
 import { Sparkles, Check, X, Search, ShieldCheck, RefreshCw, Camera, CameraOff } from "lucide-react";
+import jsQR from "jsqr";
 
 export default function AdminCampaignsPage() {
   const [campaigns, setCampaigns] = useState([]);
@@ -107,39 +108,21 @@ export default function AdminCampaignsPage() {
     }
   };
 
-  // Camera QR Scanner functionaliteit
+const animFrameRef = useRef(null);
+  const canvasRef = useRef(null);
+
   const startScanner = async () => {
     setScanning(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
+        video: { facingMode: { ideal: "environment" } }
       });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-
-      // Check of BarcodeDetector beschikbaar is in browser (iOS 17+ Safari & Chrome)
-      if ("BarcodeDetector" in window) {
-        const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
-        const interval = setInterval(async () => {
-          if (!videoRef.current || videoRef.current.readyState < 2) return;
-          try {
-            const barcodes = await detector.detect(videoRef.current);
-            if (barcodes.length > 0) {
-              const detectedCode = barcodes[0].rawValue;
-              clearInterval(interval);
-              stopScanner();
-              setCheckCode(detectedCode);
-              executeCheck(detectedCode);
-            }
-          } catch (e) {
-            // Scanner frame scan fout negeren
-          }
-        }, 400);
-      } else {
-        toast.info("Richt de camera op de QR code. Tik op de video zodra hij scherp is.");
+        videoRef.current.setAttribute("playsinline", true);
+        await videoRef.current.play();
+        animFrameRef.current = requestAnimationFrame(scanFrame);
       }
     } catch (err) {
       toast.error("Kan camera niet openen. Controleer camerarechten.");
@@ -147,7 +130,43 @@ export default function AdminCampaignsPage() {
     }
   };
 
+  const scanFrame = () => {
+    if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
+      animFrameRef.current = requestAnimationFrame(scanFrame);
+      return;
+    }
+
+    if (!canvasRef.current) {
+      canvasRef.current = document.createElement("canvas");
+    }
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: "dontInvert",
+    });
+
+    if (code && code.data) {
+      const detected = code.data.trim();
+      stopScanner();
+      setCheckCode(detected);
+      executeCheck(detected);
+      return;
+    }
+
+    animFrameRef.current = requestAnimationFrame(scanFrame);
+  };
+
   const stopScanner = () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
